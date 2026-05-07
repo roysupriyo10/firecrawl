@@ -51,26 +51,41 @@ export async function scrapePDFWithFirePDF(
   const logger = meta.logger;
 
   if (!maxPages && !meta.internalOptions.zeroDataRetention) {
-    try {
-      const cached = await getPdfResultFromCache(
-        base64Content,
-        "firepdf",
-        mode,
-      );
-      if (cached) {
-        logger.info("Using cached FirePDF result", {
-          scrapeId: meta.id,
+    // OCR is the highest-fidelity mode, so a prior `ocr` cache entry is a
+    // strict upgrade over rerunning `auto`/`fast`. Try OCR first for those
+    // modes; if missing, fall back to the cache scoped to the requested
+    // mode. (When mode itself is `ocr` or undefined, this is a single
+    // lookup against the same key.)
+    const lookupVariants =
+      mode === "auto" || mode === "fast" ? ["ocr", mode] : [mode];
+
+    for (const variant of lookupVariants) {
+      try {
+        const cached = await getPdfResultFromCache(
+          base64Content,
+          "firepdf",
+          variant,
+        );
+        if (cached) {
+          logger.info("Using cached FirePDF result", {
+            scrapeId: meta.id,
+            requestedMode: mode,
+            cacheVariant: variant,
+          });
+          // Cache entries written before pagesProcessed existed don't carry
+          // the field. Fall back to the caller's pagesProcessed argument so
+          // billing on a stale hit doesn't silently regress to 0.
+          return {
+            ...cached,
+            pagesProcessed: cached.pagesProcessed ?? pagesProcessed,
+          };
+        }
+      } catch (error) {
+        logger.warn("Error checking FirePDF cache, proceeding", {
+          error,
+          cacheVariant: variant,
         });
-        // Cache entries written before pagesProcessed existed don't carry
-        // the field. Fall back to the caller's pagesProcessed argument so
-        // billing on a stale hit doesn't silently regress to 0.
-        return {
-          ...cached,
-          pagesProcessed: cached.pagesProcessed ?? pagesProcessed,
-        };
       }
-    } catch (error) {
-      logger.warn("Error checking FirePDF cache, proceeding", { error });
     }
   }
 
