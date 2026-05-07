@@ -50,29 +50,26 @@ export async function scrapePDFWithFirePDF(
 ): Promise<PDFProcessorResult> {
   const logger = meta.logger;
 
-  // Cache policy: only OCR runs produce cache entries. OCR is the
-  // highest-fidelity output, so its result is safe to serve to later
-  // `auto` callers as a strict upgrade. `fast` is bypassed entirely
-  // (hard cost ceiling — must fail fast on scanned PDFs, not silently
-  // upgrade to OCR). `auto` reads the OCR cache but never writes;
-  // re-running `auto` is the user's stated trade-off vs storing
-  // lower-fidelity output.
-  const cacheReadable =
+  // Cache is scoped per parser mode because `auto` and `ocr` produce
+  // different markdown at fire-pdf: `auto` extracts text pages directly
+  // and only OCRs scanned pages, while `ocr` forces layout-mode OCR on
+  // every page. Cross-mode reuse would silently swap output styles.
+  // `fast` is bypassed entirely — it's a hard cost ceiling that must
+  // fail on scanned PDFs rather than serve a cached OCR result.
+  const cacheable =
     mode !== "fast" && !maxPages && !meta.internalOptions.zeroDataRetention;
-  const cacheWritable =
-    mode === "ocr" && !maxPages && !meta.internalOptions.zeroDataRetention;
 
-  if (cacheReadable) {
+  if (cacheable) {
     try {
       const cached = await getPdfResultFromCache(
         base64Content,
         "firepdf",
-        "ocr",
+        mode,
       );
       if (cached) {
-        logger.info("Using cached FirePDF OCR result", {
+        logger.info("Using cached FirePDF result", {
           scrapeId: meta.id,
-          requestedMode: mode,
+          mode,
         });
         // Cache entries written before pagesProcessed existed don't carry
         // the field. Fall back to the caller's pagesProcessed argument so
@@ -173,13 +170,13 @@ export async function scrapePDFWithFirePDF(
     pagesProcessed: pages,
   };
 
-  if (cacheWritable) {
+  if (cacheable) {
     try {
       await savePdfResultToCache(
         base64Content,
         processorResult,
         "firepdf",
-        "ocr",
+        mode,
       );
     } catch (error) {
       logger.warn("Error saving FirePDF result to cache", { error });
