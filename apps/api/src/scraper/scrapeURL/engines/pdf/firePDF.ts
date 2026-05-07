@@ -50,48 +50,40 @@ export async function scrapePDFWithFirePDF(
 ): Promise<PDFProcessorResult> {
   const logger = meta.logger;
 
-  // `fast` mode is a hard cost ceiling: it should fail fast on PDFs that
-  // need OCR rather than silently upgrading to a cached OCR result, and
-  // its outputs aren't worth caching since the path is cheap by design.
-  // Skip cache reads/writes entirely for fast mode.
-  const cacheable =
+  // Cache policy: only OCR runs produce cache entries. OCR is the
+  // highest-fidelity output, so its result is safe to serve to later
+  // `auto` callers as a strict upgrade. `fast` is bypassed entirely
+  // (hard cost ceiling — must fail fast on scanned PDFs, not silently
+  // upgrade to OCR). `auto` reads the OCR cache but never writes;
+  // re-running `auto` is the user's stated trade-off vs storing
+  // lower-fidelity output.
+  const cacheReadable =
     mode !== "fast" && !maxPages && !meta.internalOptions.zeroDataRetention;
+  const cacheWritable =
+    mode === "ocr" && !maxPages && !meta.internalOptions.zeroDataRetention;
 
-  if (cacheable) {
-    // OCR is the highest-fidelity mode, so a prior `ocr` cache entry is a
-    // strict upgrade over rerunning `auto`. Try OCR first for `auto`; if
-    // missing, fall back to the cache scoped to the requested mode.
-    // (When mode itself is `ocr` or undefined, this is a single lookup
-    // against the same key.)
-    const lookupVariants = mode === "auto" ? ["ocr", mode] : [mode];
-
-    for (const variant of lookupVariants) {
-      try {
-        const cached = await getPdfResultFromCache(
-          base64Content,
-          "firepdf",
-          variant,
-        );
-        if (cached) {
-          logger.info("Using cached FirePDF result", {
-            scrapeId: meta.id,
-            requestedMode: mode,
-            cacheVariant: variant,
-          });
-          // Cache entries written before pagesProcessed existed don't carry
-          // the field. Fall back to the caller's pagesProcessed argument so
-          // billing on a stale hit doesn't silently regress to 0.
-          return {
-            ...cached,
-            pagesProcessed: cached.pagesProcessed ?? pagesProcessed,
-          };
-        }
-      } catch (error) {
-        logger.warn("Error checking FirePDF cache, proceeding", {
-          error,
-          cacheVariant: variant,
+  if (cacheReadable) {
+    try {
+      const cached = await getPdfResultFromCache(
+        base64Content,
+        "firepdf",
+        "ocr",
+      );
+      if (cached) {
+        logger.info("Using cached FirePDF OCR result", {
+          scrapeId: meta.id,
+          requestedMode: mode,
         });
+        // Cache entries written before pagesProcessed existed don't carry
+        // the field. Fall back to the caller's pagesProcessed argument so
+        // billing on a stale hit doesn't silently regress to 0.
+        return {
+          ...cached,
+          pagesProcessed: cached.pagesProcessed ?? pagesProcessed,
+        };
       }
+    } catch (error) {
+      logger.warn("Error checking FirePDF cache, proceeding", { error });
     }
   }
 
@@ -181,13 +173,13 @@ export async function scrapePDFWithFirePDF(
     pagesProcessed: pages,
   };
 
-  if (cacheable) {
+  if (cacheWritable) {
     try {
       await savePdfResultToCache(
         base64Content,
         processorResult,
         "firepdf",
-        mode,
+        "ocr",
       );
     } catch (error) {
       logger.warn("Error saving FirePDF result to cache", { error });
