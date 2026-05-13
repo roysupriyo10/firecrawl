@@ -33,7 +33,12 @@ import {
 } from "../../../../lib/native-logging";
 import { withSpan, setSpanAttributes } from "../../../../lib/otel-tracer";
 import { scrapePDFWithRunPodMU } from "./runpodMU";
-import { reconcilePageCountWithFirePdf, scrapePDFWithFirePDF } from "./firePDF";
+import {
+  isFirePdfAsyncFatalError,
+  reconcilePageCountWithFirePdf,
+  scrapePDFWithFirePDF,
+  scrapePDFWithFirePDFAsync,
+} from "./firePDF";
 import { scrapePDFWithParsePDF } from "./pdfParse";
 import { captureExceptionWithZdrCheck } from "../../../../services/sentry";
 import { isPdfBuffer, PDF_SNIFF_WINDOW } from "./pdfUtils";
@@ -368,9 +373,15 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
       const pdfBuffer = await readFile(tempFilePath);
       const fileSizeBytes = pdfBuffer.length;
       const base64Content = pdfBuffer.toString("base64");
+      const firePdfRequestedByAsyncFlag =
+        !!meta.options.enableFirePdfAsync && !!config.FIRE_PDF_BASE_URL;
+      const useFirePDFAsync =
+        firePdfRequestedByAsyncFlag &&
+        meta.internalOptions.zeroDataRetention !== true;
 
       if (
         !forceFirePDF &&
+        !firePdfRequestedByAsyncFlag &&
         !routeToMinerU &&
         config.FIRE_PDF_ENABLE &&
         config.FIRE_PDF_BASE_URL &&
@@ -392,6 +403,7 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
       // we explicitly routed to MinerU via MINERU_PERCENT.
       const useFirePDF =
         forceFirePDF ||
+        firePdfRequestedByAsyncFlag ||
         (!routeToMinerU &&
           config.FIRE_PDF_ENABLE &&
           config.FIRE_PDF_BASE_URL &&
@@ -400,18 +412,42 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
 
       if (useFirePDF) {
         try {
-          result = await scrapePDFWithFirePDF(
-            {
-              ...meta,
-              logger: meta.logger.child({
-                method: "scrapePDF/firePDF",
-              }),
-            },
-            base64Content,
-            maxPages,
-            effectivePageCount,
-            mode,
-          );
+          const firePdfMeta = {
+            ...meta,
+            logger: meta.logger.child({
+              method: useFirePDFAsync
+                ? "scrapePDF/firePDFAsync"
+                : "scrapePDF/firePDF",
+            }),
+          };
+          result = useFirePDFAsync
+            ? await scrapePDFWithFirePDFAsync(
+                firePdfMeta,
+                base64Content,
+                maxPages,
+                effectivePageCount,
+                mode,
+                () =>
+                  scrapePDFWithFirePDF(
+                    {
+                      ...meta,
+                      logger: meta.logger.child({
+                        method: "scrapePDF/firePDF",
+                      }),
+                    },
+                    base64Content,
+                    maxPages,
+                    effectivePageCount,
+                    mode,
+                  ),
+              )
+            : await scrapePDFWithFirePDF(
+                firePdfMeta,
+                base64Content,
+                maxPages,
+                effectivePageCount,
+                mode,
+              );
           effectivePageCount = reconcilePageCountWithFirePdf(
             effectivePageCount,
             result,
@@ -421,6 +457,9 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
             error instanceof RemoveFeatureError ||
             error instanceof AbortManagerThrownError
           ) {
+            throw error;
+          }
+          if (isFirePdfAsyncFatalError(error)) {
             throw error;
           }
           if (forceFirePDF) {
