@@ -1,4 +1,4 @@
-# Firecrawl v2.10.0
+# Firecrawl v3.0.0
 
 ## Improvements
 
@@ -105,4 +105,4 @@
 
 ---
 
-**Full Changelog**: https://github.com/firecrawl/firecrawl/compare/v2.9.0...v2.10.0
+**Full Changelog**: https://github.com/firecrawl/firecrawl/compare/v2.9.0...v3.0.0
