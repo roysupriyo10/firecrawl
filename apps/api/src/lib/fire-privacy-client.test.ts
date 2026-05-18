@@ -68,16 +68,21 @@ describe("redactText", () => {
         },
       ],
       model_status: "ok",
-      model_truncated_at: null,
     });
 
     const out = await redactText({ text: "Hi, my name is Alice Smith." });
 
     expect(out.status).toBe("ok");
+    expect(out.reason).toBeUndefined();
     expect(out.redactedMarkdown).toBe("Hi, my name is <PERSON>.");
     expect(out.spans).toHaveLength(1);
-    expect(out.spans[0].kind).toBe("PERSON");
-    expect(out.truncatedAt).toBeNull();
+    expect(out.spans[0]).toMatchObject({
+      kind: "PERSON",
+      entity: "PERSON",
+      source: "heuristics",
+      score: 0.9,
+    });
+    expect(out.counts).toEqual({ PERSON: 1 });
   });
 
   it("treats absent model_status as ok", async () => {
@@ -89,20 +94,10 @@ describe("redactText", () => {
     const out = await redactText({ text: "input" });
     expect(out.status).toBe("ok");
     expect(out.redactedMarkdown).toBe("redacted");
+    expect(out.counts).toEqual({});
   });
 
-  it("passes through truncatedAt when set", async () => {
-    handler = withBody({
-      redacted_text: "...",
-      spans: [],
-      model_truncated_at: 32000,
-    });
-
-    const out = await redactText({ text: "input" });
-    expect(out.truncatedAt).toBe(32000);
-  });
-
-  it("returns status=skipped when model_status is skipped", async () => {
+  it("returns status=skipped with reason=upstream_skipped when model_status is skipped", async () => {
     handler = withBody({
       redacted_text: "",
       spans: [],
@@ -111,10 +106,11 @@ describe("redactText", () => {
 
     const out = await redactText({ text: "input-not-empty" });
     expect(out.status).toBe("skipped");
+    expect(out.reason).toBe("upstream_skipped");
     expect(out.redactedMarkdown).toBe("");
   });
 
-  it("short-circuits empty input to skipped without an HTTP call", async () => {
+  it("short-circuits empty input to skipped with empty_input and no HTTP call", async () => {
     let called = false;
     handler = (_req, res) => {
       called = true;
@@ -125,45 +121,51 @@ describe("redactText", () => {
     const out = await redactText({ text: "   \n\t" });
     expect(called).toBe(false);
     expect(out.status).toBe("skipped");
+    expect(out.reason).toBe("empty_input");
     expect(out.redactedMarkdown).toBe("   \n\t");
     expect(out.spans).toEqual([]);
+    expect(out.counts).toEqual({});
   });
 
-  it("maps 503 to service_at_capacity, success-with-null-markdown", async () => {
+  it("maps 503 to failed/service_unavailable, null markdown", async () => {
     handler = (_req, res) => {
       res.statusCode = 503;
       res.end();
     };
 
     const out = await redactText({ text: "input" });
-    expect(out.status).toBe("service_at_capacity");
+    expect(out.status).toBe("failed");
+    expect(out.reason).toBe("service_unavailable");
     expect(out.redactedMarkdown).toBeNull();
     expect(out.spans).toEqual([]);
+    expect(out.counts).toEqual({});
   });
 
-  it("maps 413 (input too large) to error", async () => {
+  it("maps 413 (input too large) to failed/error", async () => {
     handler = (_req, res) => {
       res.statusCode = 413;
       res.end();
     };
 
     const out = await redactText({ text: "input" });
-    expect(out.status).toBe("error");
+    expect(out.status).toBe("failed");
+    expect(out.reason).toBe("error");
     expect(out.redactedMarkdown).toBeNull();
   });
 
-  it("maps generic 5xx to error", async () => {
+  it("maps generic 5xx to failed/error", async () => {
     handler = (_req, res) => {
       res.statusCode = 502;
       res.end();
     };
 
     const out = await redactText({ text: "input" });
-    expect(out.status).toBe("error");
+    expect(out.status).toBe("failed");
+    expect(out.reason).toBe("error");
     expect(out.redactedMarkdown).toBeNull();
   });
 
-  it("returns status=error when model_status is error", async () => {
+  it("returns failed/error when model_status is error", async () => {
     handler = withBody({
       redacted_text: "anything",
       spans: [],
@@ -171,11 +173,12 @@ describe("redactText", () => {
     });
 
     const out = await redactText({ text: "input" });
-    expect(out.status).toBe("error");
+    expect(out.status).toBe("failed");
+    expect(out.reason).toBe("error");
     expect(out.redactedMarkdown).toBeNull();
   });
 
-  it("returns timeout when fire-privacy exceeds the budget", async () => {
+  it("returns failed/timeout when fire-privacy exceeds the budget", async () => {
     handler = (_req, res) => {
       // Hang past the timeout.
       setTimeout(() => {
@@ -191,23 +194,25 @@ describe("redactText", () => {
     };
 
     const out = await redactText({ text: "input", timeoutMs: 50 });
-    expect(out.status).toBe("timeout");
+    expect(out.status).toBe("failed");
+    expect(out.reason).toBe("timeout");
     expect(out.redactedMarkdown).toBeNull();
   });
 
-  it("returns error when the URL is unreachable", async () => {
+  it("returns failed/error when the URL is unreachable", async () => {
     const originalLocalUrl = config.FIRE_PRIVACY_URL;
     config.FIRE_PRIVACY_URL = "http://127.0.0.1:1";
     try {
       const out = await redactText({ text: "input", timeoutMs: 500 });
-      expect(out.status).toBe("error");
+      expect(out.status).toBe("failed");
+      expect(out.reason).toBe("error");
       expect(out.redactedMarkdown).toBeNull();
     } finally {
       config.FIRE_PRIVACY_URL = originalLocalUrl;
     }
   });
 
-  it("returns error on invalid JSON response", async () => {
+  it("returns failed/error on invalid JSON response", async () => {
     handler = (_req, res) => {
       res.statusCode = 200;
       res.setHeader("content-type", "application/json");
@@ -215,7 +220,8 @@ describe("redactText", () => {
     };
 
     const out = await redactText({ text: "input" });
-    expect(out.status).toBe("error");
+    expect(out.status).toBe("failed");
+    expect(out.reason).toBe("error");
     expect(out.redactedMarkdown).toBeNull();
   });
 
@@ -234,8 +240,38 @@ describe("redactText", () => {
     expect(out.spans).toHaveLength(2);
     expect(out.spans[0].kind).toBe("PERSON");
     expect(out.spans[1].kind).toBe("EMAIL_ADDRESS");
-    expect(out.spans[1].score).toBe(0);
+    // No `score` field when fire-privacy didn't supply one.
+    expect(out.spans[1].score).toBeUndefined();
+    // Opaque source falls back to "unknown".
     expect(out.spans[1].source).toBe("unknown");
+    // Counts roll up by entity, not kind.
+    expect(out.counts).toEqual({ PERSON: 1, EMAIL: 1 });
+  });
+
+  it("attaches public entity bucket to each span; omits when unmapped", async () => {
+    handler = withBody({
+      redacted_text: "x",
+      spans: [
+        { start: 0, end: 5, kind: "PRIVATE_PERSON", source: "openai-privacy-filter" },
+        { start: 6, end: 10, kind: "EMAIL_ADDRESS", source: "EmailRecognizer" },
+        { start: 11, end: 15, kind: "ORGANIZATION", source: "SpacyRecognizer" },
+      ],
+    });
+    const out = await redactText({ text: "input here.." });
+    expect(out.spans[0]).toMatchObject({
+      kind: "PRIVATE_PERSON",
+      entity: "PERSON",
+      source: "model",
+    });
+    expect(out.spans[1]).toMatchObject({
+      kind: "EMAIL_ADDRESS",
+      entity: "EMAIL",
+      source: "heuristics",
+    });
+    expect(out.spans[2].kind).toBe("ORGANIZATION");
+    expect(out.spans[2].entity).toBeUndefined();
+    // Unmapped spans don't roll into counts.
+    expect(out.counts).toEqual({ PERSON: 1, EMAIL: 1 });
   });
 
   it("sends mode/operator/language defaults", async () => {
@@ -365,11 +401,13 @@ describe("redactText", () => {
     // Person span filtered out; email retained.
     expect(out.spans).toHaveLength(1);
     expect(out.spans[0].kind).toBe("EMAIL_ADDRESS");
+    expect(out.spans[0].entity).toBe("EMAIL");
     // Markdown re-rendered from the filtered span set: name stays, email
     // gets replaced with the kind tag.
     expect(out.redactedMarkdown).toBe(
       "Hi, my name is Alice Smith. Email me at <EMAIL_ADDRESS>.",
     );
+    expect(out.counts).toEqual({ EMAIL: 1 });
   });
 
   it("uses upstream redacted_text when no entity filter is set", async () => {
@@ -416,6 +454,7 @@ describe("redactText", () => {
 
     expect(out.spans).toEqual([]);
     expect(out.redactedMarkdown).toBe("ABCDE end");
+    expect(out.counts).toEqual({});
   });
 
   it("re-renders with mask style preserving span length", async () => {
@@ -523,9 +562,10 @@ describe("redactText", () => {
         "Alice Carter",
       );
     }
+    expect(out.counts.PERSON).toBe(expectedHits.length);
   });
 
-  it("returns skipped_too_large above the byte ceiling without an HTTP call", async () => {
+  it("returns skipped/too_large above the byte ceiling without an HTTP call", async () => {
     let called = false;
     handler = (_req, res) => {
       called = true;
@@ -538,16 +578,17 @@ describe("redactText", () => {
     const out = await redactText({ text });
 
     expect(called).toBe(false);
-    expect(out.status).toBe("skipped_too_large");
+    expect(out.status).toBe("skipped");
+    expect(out.reason).toBe("too_large");
     expect(out.redactedMarkdown).toBeNull();
     expect(out.spans).toEqual([]);
-    expect(out.truncatedAt).toBeNull();
+    expect(out.counts).toEqual({});
   });
 
   it("fails the whole response when any chunk errors (all-or-nothing)", async () => {
     // Force a long input that will produce multiple chunks. First chunk
     // returns 200; second chunk returns 503. The merged result must be
-    // service_at_capacity with no partial spans surfaced.
+    // failed/service_unavailable with no partial spans surfaced.
     const text = "Filler. ".repeat(8000); // ~64K chars
     expect(text.length).toBeGreaterThan(28_000);
 
@@ -573,9 +614,11 @@ describe("redactText", () => {
     };
 
     const out = await redactText({ text });
-    expect(out.status).toBe("service_at_capacity");
+    expect(out.status).toBe("failed");
+    expect(out.reason).toBe("service_unavailable");
     expect(out.redactedMarkdown).toBeNull();
     expect(out.spans).toEqual([]);
+    expect(out.counts).toEqual({});
   });
 
   it("fans out chunked calls (concurrency > 1)", async () => {

@@ -126,13 +126,7 @@ describeIf(TEST_PRODUCTION)("V2 Scrape redactPII (e2e)", () => {
       expect((data.markdown ?? "").length).toBeGreaterThan(0);
 
       expect(data.pii).toBeDefined();
-      expect([
-        "ok",
-        "skipped",
-        "error",
-        "service_at_capacity",
-        "timeout",
-      ]).toContain(data.pii!.status);
+      expect(["ok", "skipped", "failed"]).toContain(data.pii!.status);
 
       if (data.pii!.status === "ok") {
         expect(typeof data.pii!.redactedMarkdown).toBe("string");
@@ -144,15 +138,23 @@ describeIf(TEST_PRODUCTION)("V2 Scrape redactPII (e2e)", () => {
             kind: expect.any(String),
           }),
         );
-      } else {
+        // counts should sum to the number of spans with a mapped entity.
+        const mappedSpanCount = data.pii!.spans.filter(s => s.entity).length;
+        const totalCount = Object.values(data.pii!.counts ?? {}).reduce(
+          (a, b) => a + (b ?? 0),
+          0,
+        );
+        expect(totalCount).toBe(mappedSpanCount);
+      } else if (data.pii!.status === "failed") {
         expect(data.pii!.redactedMarkdown).toBeNull();
+        expect(data.pii!.reason).toBeDefined();
       }
     },
     scrapeTimeout,
   );
 
   it(
-    "fails soft when fire-privacy is unreachable — markdown still returned, status is timeout/error",
+    "fails soft when fire-privacy is unreachable — markdown still returned, status is failed",
     async () => {
       const data = await scrape(
         {
@@ -165,16 +167,13 @@ describeIf(TEST_PRODUCTION)("V2 Scrape redactPII (e2e)", () => {
 
       expect(typeof data.markdown).toBe("string");
       expect(data.pii).toBeDefined();
-      // We don't pin to a specific failure status — could be ok if
-      // fire-privacy is reachable in this environment, or one of the
-      // failure statuses otherwise. The contract is: scrape still succeeds.
-      expect([
-        "ok",
-        "skipped",
-        "error",
-        "service_at_capacity",
-        "timeout",
-      ]).toContain(data.pii!.status);
+      // We don't pin to a specific outcome — could be ok if fire-privacy
+      // is reachable in this environment, or one of skipped/failed otherwise.
+      // The contract is: scrape still succeeds.
+      expect(["ok", "skipped", "failed"]).toContain(data.pii!.status);
+      if (data.pii!.status !== "ok") {
+        expect(data.pii!.reason).toBeDefined();
+      }
     },
     scrapeTimeout,
   );

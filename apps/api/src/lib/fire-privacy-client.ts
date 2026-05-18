@@ -2,7 +2,8 @@ import { Logger } from "winston";
 import { config } from "../config";
 import {
   PIIBlock,
-  PIIStatus,
+  PIIReason,
+  PIISource,
   PIISpan,
   RedactPIIOptions,
   type RedactPIIEntity,
@@ -13,7 +14,6 @@ type FirePrivacyResponse = {
   redacted_text?: unknown;
   spans?: unknown;
   model_status?: unknown;
-  model_truncated_at?: unknown;
 };
 
 type RedactOptions = {
@@ -49,10 +49,10 @@ const DEFAULTS = {
 } as const;
 
 // Hard ceiling: above this byte count we refuse to redact and return
-// `skipped_too_large` rather than ship partial results. Sized from
-// `eval/scaling/` measurements in fire-privacy: 250KB ≈ ~80 PDF pages,
-// ~10 chunks, ~60s wall at c=3 with the model on. Anything larger
-// pushes past the typical scrape budget and starves the fleet.
+// `skipped` with reason `too_large` rather than ship partial results.
+// Sized from `eval/scaling/` measurements in fire-privacy: 250KB ≈ ~80
+// PDF pages, ~10 chunks, ~60s wall at c=3 with the model on. Anything
+// larger pushes past the typical scrape budget and starves the fleet.
 const MAX_REDACT_BYTES = 250_000;
 // Chunks fan out at this concurrency to fire-privacy. The fleet has 6
 // pods at saturation; c=3 keeps a single call under 50% of capacity so
@@ -94,6 +94,16 @@ const KIND_TO_ENTITY: Record<string, RedactPIIEntity> = {
   MEDICAL_LICENSE: "SECRET",
 };
 
+// Classify fire-privacy's per-span `source` string into the public
+// taxonomy. OPF spans always carry `openai-privacy-filter`; Presidio
+// recognizer names end in `Recognizer`. Anything else is opaque.
+function classifySource(raw: unknown): PIISource {
+  if (typeof raw !== "string") return "unknown";
+  if (raw === "openai-privacy-filter") return "model";
+  if (raw.endsWith("Recognizer")) return "heuristics";
+  return "unknown";
+}
+
 function coerceSpans(value: unknown): PIISpan[] {
   if (!Array.isArray(value)) return [];
   const out: PIISpan[] = [];
@@ -107,39 +117,30 @@ function coerceSpans(value: unknown): PIISpan[] {
     ) {
       continue;
     }
-    out.push({
+    const entity = KIND_TO_ENTITY[r.kind];
+    const span: PIISpan = {
       start: r.start,
       end: r.end,
       kind: r.kind,
-      score: typeof r.score === "number" ? r.score : 0,
-      source: typeof r.source === "string" ? r.source : "unknown",
-    });
+      source: classifySource(r.source),
+    };
+    if (entity !== undefined) span.entity = entity;
+    if (typeof r.score === "number") span.score = r.score;
+    out.push(span);
   }
   return out;
 }
 
-function statusFromModelStatus(value: unknown): PIIStatus {
-  // Per the API contract: on 200, derive status from `model_status` when
-  // present. "skipped" and "error" map directly. Anything else — including
-  // "ok", "disabled", or an absent field — means redaction succeeded.
-  if (value === "skipped") return "skipped";
-  if (value === "error") return "error";
-  return "ok";
-}
-
 // Apply an entity allowlist to the span set. When unset, returns the
-// spans unchanged. When set, keeps only spans whose `kind` maps onto
-// one of the requested entities — unmapped kinds drop.
+// spans unchanged. When set, keeps only spans with a mapped `entity`
+// that's in the allowlist — unmapped spans drop.
 function filterByEntities(
   spans: PIISpan[],
   entities: readonly RedactPIIEntity[] | undefined,
 ): PIISpan[] {
   if (!entities || entities.length === 0) return spans;
   const allow = new Set(entities);
-  return spans.filter(span => {
-    const bucket = KIND_TO_ENTITY[span.kind];
-    return bucket !== undefined && allow.has(bucket);
-  });
+  return spans.filter(s => s.entity !== undefined && allow.has(s.entity));
 }
 
 // Re-render redacted text from the original + a filtered span set when
@@ -178,6 +179,17 @@ function renderRedacted(
   return out;
 }
 
+function countByEntity(
+  spans: PIISpan[],
+): Partial<Record<RedactPIIEntity, number>> {
+  const out: Partial<Record<RedactPIIEntity, number>> = {};
+  for (const span of spans) {
+    if (span.entity === undefined) continue;
+    out[span.entity] = (out[span.entity] ?? 0) + 1;
+  }
+  return out;
+}
+
 // Result of one /redact call, in source-coordinate space (spans already
 // offset by the chunk's start).
 type ChunkResult =
@@ -185,12 +197,12 @@ type ChunkResult =
       ok: true;
       spans: PIISpan[];
       redactedText: string;
-      // Sticky status across chunks: "ok" unless an individual chunk
-      // model errored (we surface that on the merged block).
-      modelStatus: PIIStatus;
-      truncatedAt: number | null;
+      // Sticky upstream-skip flag: true if the model returned
+      // model_status === "skipped" for this chunk. Surfaces on the
+      // merged block when any chunk was skipped upstream.
+      upstreamSkipped: boolean;
     }
-  | { ok: false; status: PIIStatus };
+  | { ok: false; reason: PIIReason };
 
 async function redactOnce(
   chunk: Chunk,
@@ -221,29 +233,29 @@ async function redactOnce(
     });
   } catch (err) {
     clearTimeout(timer);
-    const status: PIIStatus = timedOut ? "timeout" : "error";
+    const reason: PIIReason = timedOut ? "timeout" : "error";
     logger?.warn("fire-privacy request failed", {
-      status,
+      reason,
       url,
       mode: options.mode,
       chunkStart: chunk.start,
       error: err instanceof Error ? err.message : String(err),
     });
-    return { ok: false, status };
+    return { ok: false, reason };
   }
   clearTimeout(timer);
 
   if (!response.ok) {
-    const status: PIIStatus =
-      response.status === 503 ? "service_at_capacity" : "error";
+    const reason: PIIReason =
+      response.status === 503 ? "service_unavailable" : "error";
     logger?.warn("fire-privacy returned non-2xx", {
-      status,
+      reason,
       httpStatus: response.status,
       url,
       mode: options.mode,
       chunkStart: chunk.start,
     });
-    return { ok: false, status };
+    return { ok: false, reason };
   }
 
   let body: FirePrivacyResponse;
@@ -255,20 +267,15 @@ async function redactOnce(
       chunkStart: chunk.start,
       error: err instanceof Error ? err.message : String(err),
     });
-    return { ok: false, status: "error" };
+    return { ok: false, reason: "error" };
   }
 
-  const modelStatus = statusFromModelStatus(body.model_status);
   const upstreamRedacted =
     typeof body.redacted_text === "string" ? body.redacted_text : null;
   const rawSpans = coerceSpans(body.spans);
-  const truncatedAt =
-    typeof body.model_truncated_at === "number"
-      ? body.model_truncated_at + chunk.start
-      : null;
 
-  if (modelStatus === "error" || upstreamRedacted === null) {
-    return { ok: false, status: "error" };
+  if (body.model_status === "error" || upstreamRedacted === null) {
+    return { ok: false, reason: "error" };
   }
 
   // Lift spans into source coordinates.
@@ -282,8 +289,7 @@ async function redactOnce(
     ok: true,
     spans,
     redactedText: upstreamRedacted,
-    modelStatus,
-    truncatedAt,
+    upstreamSkipped: body.model_status === "skipped",
   };
 }
 
@@ -324,18 +330,20 @@ export async function redactText(opts: RedactOptions): Promise<PIIBlock> {
   };
 
   // Empty/whitespace input is a no-op locally — saves a round trip and matches
-  // fire-privacy's own "skipped" semantics.
+  // fire-privacy's own "skipped" semantics. We pass the original text through
+  // as `redactedMarkdown` since there's nothing to remove.
   if (text.trim().length === 0) {
     return {
       status: "skipped",
+      reason: "empty_input",
       redactedMarkdown: text,
       spans: [],
-      truncatedAt: null,
+      counts: {},
     };
   }
 
   // Hard byte ceiling. Anything above this is refused with a dedicated
-  // status so callers can tell "we declined" apart from "we tried and
+  // reason so callers can tell "we declined" apart from "we tried and
   // it broke." We measure bytes, not chars, because fire-privacy's
   // request cap is byte-based.
   const inputBytes = new TextEncoder().encode(text).length;
@@ -346,10 +354,11 @@ export async function redactText(opts: RedactOptions): Promise<PIIBlock> {
       maxBytes: MAX_REDACT_BYTES,
     });
     return {
-      status: "skipped_too_large",
+      status: "skipped",
+      reason: "too_large",
       redactedMarkdown: null,
       spans: [],
-      truncatedAt: null,
+      counts: {},
     };
   }
 
@@ -358,16 +367,17 @@ export async function redactText(opts: RedactOptions): Promise<PIIBlock> {
 
   // All-or-nothing: any chunk failure poisons the whole response. Partial
   // redaction is worse than no redaction — callers can't tell which
-  // sections of their markdown are clean. Pick the first non-ok status
-  // so the failure surface (timeout / service_at_capacity / error) is
+  // sections of their markdown are clean. Pick the first non-ok reason
+  // so the failure surface (timeout / service_unavailable / error) is
   // preserved end-to-end.
   const firstFailure = results.find(r => !r.ok);
   if (firstFailure && !firstFailure.ok) {
     return {
-      status: firstFailure.status,
+      status: "failed",
+      reason: firstFailure.reason,
       redactedMarkdown: null,
       spans: [],
-      truncatedAt: null,
+      counts: {},
     };
   }
 
@@ -377,18 +387,8 @@ export async function redactText(opts: RedactOptions): Promise<PIIBlock> {
 
   // Merge: spans already lifted into source coordinates by redactOnce.
   const allSpans = successes.flatMap(r => r.spans);
-  // truncatedAt: surface the first chunk that reported truncation. With
-  // chunks ≤28K chars (below fire-privacy's 32K model window), this
-  // should be null in practice.
-  const truncatedAt =
-    successes.find(r => r.truncatedAt !== null)?.truncatedAt ?? null;
-
-  // Status: pass through model-side status from the first chunk. If any
-  // chunk's model said "skipped", we surface that; otherwise "ok".
-  const status: PIIStatus =
-    successes.find(r => r.modelStatus === "skipped")?.modelStatus ?? "ok";
-
   const spans = filterByEntities(allSpans, options.entities);
+
   // Re-render when the entity filter pruned spans OR when we have
   // multiple chunks (per-chunk redacted_text concatenations are valid
   // since chunks are non-overlapping, but re-rendering with the same
@@ -401,10 +401,22 @@ export async function redactText(opts: RedactOptions): Promise<PIIBlock> {
       ? concatRedacted
       : renderRedacted(text, spans, options.replaceStyle);
 
+  const upstreamSkipped = successes.some(r => r.upstreamSkipped);
+
+  if (upstreamSkipped) {
+    return {
+      status: "skipped",
+      reason: "upstream_skipped",
+      redactedMarkdown,
+      spans,
+      counts: countByEntity(spans),
+    };
+  }
+
   return {
-    status,
+    status: "ok",
     redactedMarkdown,
     spans,
-    truncatedAt,
+    counts: countByEntity(spans),
   };
 }

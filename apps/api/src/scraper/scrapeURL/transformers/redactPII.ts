@@ -16,9 +16,10 @@ export async function performRedactPII(
   if (typeof document.markdown !== "string") {
     document.pii = {
       status: "skipped",
+      reason: "empty_input",
       redactedMarkdown: null,
       spans: [],
-      truncatedAt: null,
+      counts: {},
     };
     return document;
   }
