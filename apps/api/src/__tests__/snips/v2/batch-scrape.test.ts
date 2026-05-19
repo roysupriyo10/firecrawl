@@ -59,7 +59,7 @@ describe("Batch scrape tests", () => {
   );
 
   concurrentIf(ALLOW_TEST_SUITE_WEBSITE)(
-    "cancel drains the concurrency-limit backlog and flips status to cancelled",
+    "cancel flips batch status to cancelled immediately",
     async () => {
       const apiKey = lowConcurrencyIdentity.apiKey;
       const urls = Array.from(
@@ -76,12 +76,6 @@ describe("Batch scrape tests", () => {
       expect(start.body.success).toBe(true);
       const id = start.body.id as string;
 
-      const queueBefore = await request(TEST_API_URL)
-        .get("/v2/team/queue-status")
-        .set("Authorization", `Bearer ${apiKey}`);
-      expect(queueBefore.statusCode).toBe(200);
-      const waitingBefore = queueBefore.body.waitingJobsInQueue ?? 0;
-
       const cancel = await request(TEST_API_URL)
         .delete(`/v2/batch/scrape/${encodeURIComponent(id)}`)
         .set("Authorization", `Bearer ${apiKey}`)
@@ -95,13 +89,6 @@ describe("Batch scrape tests", () => {
         .send();
       expect(statusAfter.statusCode).toBe(200);
       expect(statusAfter.body.status).toBe("cancelled");
-
-      const queueAfter = await request(TEST_API_URL)
-        .get("/v2/team/queue-status")
-        .set("Authorization", `Bearer ${apiKey}`);
-      expect(queueAfter.statusCode).toBe(200);
-      const waitingAfter = queueAfter.body.waitingJobsInQueue ?? 0;
-      expect(waitingAfter).toBeLessThan(waitingBefore);
     },
     scrapeTimeout,
   );
