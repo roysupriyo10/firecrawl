@@ -18,6 +18,7 @@ import type {
 
 const TEAM_FEATURE_ID = "TEAM";
 const CREDITS_FEATURE_ID = "CREDITS";
+const CONCURRENCY_FEATURE_ID = "CONCURRENCY";
 
 /**
  * Org IDs that always have Autumn enabled, regardless of experiment
@@ -580,6 +581,70 @@ export class AutumnService {
         },
       );
       return false;
+    }
+  }
+
+  // Cache CONCURRENCY balance lookups briefly so concurrency enforcement on
+  // every scrape/crawl/browser request doesn't fan out to Autumn each time.
+  private concurrencyLimitCache = new BoundedMap<
+    string,
+    { value: number | null; expiresAt: number }
+  >(50_000);
+  private static readonly CONCURRENCY_LIMIT_TTL_MS = 60_000;
+
+  /**
+   * Reads the team's allowed concurrent-browser count from Autumn's CONCURRENCY
+   * feature. Returns null if Autumn is unavailable or doesn't have a balance —
+   * callers should fall back to (or take the max with) the ACUC value.
+   */
+  async getConcurrencyLimit(
+    teamId: string,
+    orgId?: string | null,
+  ): Promise<number | null> {
+    if (!autumnClient || this.isPreviewTeam(teamId)) return null;
+
+    const now = Date.now();
+    const cached = this.concurrencyLimitCache.get(teamId);
+    if (cached && cached.expiresAt > now) return cached.value;
+
+    try {
+      const resolvedOrgId = orgId ?? (await this.resolveOrgId(teamId));
+      if (!resolvedOrgId) return null;
+
+      let balances: Record<string, any> | undefined;
+      try {
+        const entity: any = await autumnClient.entities.get({
+          customerId: resolvedOrgId,
+          entityId: teamId,
+        });
+        balances = entity?.balances;
+      } catch (error) {
+        const status = this.getErrorStatus(error);
+        if (status !== 404) throw error;
+      }
+
+      if (!balances?.[CONCURRENCY_FEATURE_ID]) {
+        const customer: any = await autumnClient.customers.getOrCreate({
+          customerId: resolvedOrgId,
+          autoEnablePlanId: AUTUMN_DEFAULT_PLAN_ID,
+        });
+        balances = customer?.balances ?? balances;
+      }
+
+      const balance = balances?.[CONCURRENCY_FEATURE_ID];
+      const granted = balance?.granted;
+      const value = typeof granted === "number" ? granted : null;
+      this.concurrencyLimitCache.set(teamId, {
+        value,
+        expiresAt: now + AutumnService.CONCURRENCY_LIMIT_TTL_MS,
+      });
+      return value;
+    } catch (error) {
+      logger.error(
+        "Autumn getConcurrencyLimit failed — billing API may be unavailable",
+        { teamId, error },
+      );
+      return null;
     }
   }
 
