@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { config } from "../config";
 import { storage } from "./gcs-jobs";
 
@@ -33,6 +34,9 @@ export type MonitorDiffArtifact =
     });
 
 const contentType = "application/json";
+const monitorDiffGcsSaveMaxAttempts = 4;
+const monitorDiffGcsRetryBaseMs = 250;
+const monitorDiffGcsRetryMaxMs = 4_000;
 
 export function monitorDiffGcsKey(params: {
   teamId: string;
@@ -40,7 +44,16 @@ export function monitorDiffGcsKey(params: {
   checkId: string;
   pageId: string;
 }): string {
-  return `monitors/${params.teamId}/${params.monitorId}/${params.checkId}/${params.pageId}.diff.json`;
+  const shard = createHash("sha256")
+    .update(
+      `${params.teamId}:${params.monitorId}:${params.checkId}:${params.pageId}`,
+    )
+    .digest("hex")
+    .slice(0, 4);
+
+  // Keep the random shard before tenant/check identifiers so high-volume
+  // monitor diff writes distribute across GCS object-name key ranges.
+  return `monitors/diffs/v2/${shard}/${params.teamId}/${params.monitorId}/${params.checkId}/${params.pageId}.diff.json`;
 }
 
 function artifactBytes(artifact: MonitorDiffArtifact): {
@@ -59,6 +72,69 @@ function artifactBytes(artifact: MonitorDiffArtifact): {
   return { textBytes, jsonBytes };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function monitorDiffGcsRetryDelayMs(attempt: number): number {
+  const cap = Math.min(
+    monitorDiffGcsRetryMaxMs,
+    monitorDiffGcsRetryBaseMs * 2 ** attempt,
+  );
+  return Math.floor(Math.random() * cap);
+}
+
+function errorStatusCode(error: unknown): number | undefined {
+  const value = error as {
+    code?: unknown;
+    statusCode?: unknown;
+    response?: { status?: unknown };
+    error?: { code?: unknown };
+  };
+  const status =
+    value.statusCode ??
+    value.code ??
+    value.response?.status ??
+    value.error?.code;
+  if (typeof status === "number") return status;
+  if (typeof status === "string") {
+    const parsed = Number(status);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function isRetryableGcsWriteError(error: unknown): boolean {
+  const status = errorStatusCode(error);
+  if (status === 408 || status === 429) return true;
+  if (status !== undefined && status >= 500 && status < 600) return true;
+
+  const value = error as {
+    message?: unknown;
+    errors?: Array<{ reason?: unknown }>;
+    error?: { errors?: Array<{ reason?: unknown }> };
+  };
+  const message =
+    typeof value.message === "string" ? value.message.toLowerCase() : "";
+  if (
+    message.includes("retry limit exceeded") ||
+    message.includes("ratelimitexceeded")
+  ) {
+    return true;
+  }
+
+  const nestedErrors = value.errors ?? value.error?.errors ?? [];
+  return nestedErrors.some(entry => {
+    const reason =
+      typeof entry.reason === "string" ? entry.reason.toLowerCase() : "";
+    return (
+      reason === "ratelimitexceeded" ||
+      reason === "backenderror" ||
+      reason === "internalerror"
+    );
+  });
+}
+
 export async function saveMonitorDiffArtifact(
   key: string,
   artifact: MonitorDiffArtifact,
@@ -69,10 +145,25 @@ export async function saveMonitorDiffArtifact(
   }
 
   const bucket = storage.bucket(config.GCS_BUCKET_NAME);
-  await bucket.file(key).save(payload, {
-    contentType,
-    resumable: false,
-  });
+  const file = bucket.file(key);
+
+  for (let attempt = 0; attempt < monitorDiffGcsSaveMaxAttempts; attempt++) {
+    try {
+      await file.save(payload, {
+        contentType,
+        resumable: false,
+      });
+      break;
+    } catch (error) {
+      if (
+        attempt === monitorDiffGcsSaveMaxAttempts - 1 ||
+        !isRetryableGcsWriteError(error)
+      ) {
+        throw error;
+      }
+      await sleep(monitorDiffGcsRetryDelayMs(attempt));
+    }
+  }
 
   return artifactBytes(artifact);
 }
