@@ -9,11 +9,11 @@ import {
   SearchFeedbackErrorCode,
 } from "../types";
 import {
-  findExistingEndpointFeedback,
-  insertEndpointFeedback,
+  findExistingFeedback,
+  insertFeedback,
   lookupFeedbackJob,
-  updateEndpointFeedbackRefundDetails,
-} from "./endpoint-feedback-store";
+  updateFeedbackRefundDetails,
+} from "./feedback-store";
 import {
   FeedbackJobRow,
   FeedbackLogger,
@@ -32,7 +32,7 @@ function isPreviewTeam(teamId: string): boolean {
   return teamId === "preview" || teamId.startsWith("preview_");
 }
 
-export function normalizeFeedbackTeamId(teamId: string): string {
+function normalizeFeedbackTeamId(teamId: string): string {
   return isPreviewTeam(teamId) ? PREVIEW_TEAM_ID : teamId;
 }
 
@@ -157,7 +157,7 @@ async function duplicateEndpointResponse(
   dbTeamId: string,
   logger: FeedbackLogger,
 ): Promise<FeedbackRecordResult> {
-  const existing = await findExistingEndpointFeedback(
+  const existing = await findExistingFeedback(
     dbTeamId,
     options.endpoint,
     options.jobId,
@@ -170,12 +170,7 @@ async function duplicateEndpointResponse(
       feedbackId: existing?.id ?? "",
       creditsRefunded: 0,
       alreadySubmitted: true,
-      creditsRefundedToday: await sumCreditsRefundedToday(
-        dbTeamId,
-        options.endpoint,
-        logger,
-        { includeLegacySearch: options.source === "search_feedback" },
-      ),
+      creditsRefundedToday: await sumCreditsRefundedToday(dbTeamId, logger),
       dailyRefundCap: dailyCapFor(options),
       warning:
         "Feedback was already submitted for this job; no additional refund issued.",
@@ -239,7 +234,7 @@ export async function recordEndpointFeedback(
     if (jobFailure) return jobFailure;
 
     const feedbackId = uuidv7();
-    const insertErr = await insertEndpointFeedback({
+    const insertErr = await insertFeedback({
       feedbackId,
       options,
       job: jobOrFailure,
@@ -257,12 +252,7 @@ export async function recordEndpointFeedback(
     }
 
     const dailyCap = dailyCapFor(options);
-    const refundedTodayBefore = await sumCreditsRefundedToday(
-      dbTeamId,
-      options.endpoint,
-      logger,
-      { includeLegacySearch: options.source === "search_feedback" },
-    );
+    const refundedTodayBefore = await sumCreditsRefundedToday(dbTeamId, logger);
     const { desiredRefund, policy } = computeRefundPolicy(
       jobOrFailure,
       options.feedback.rating,
@@ -290,7 +280,7 @@ export async function recordEndpointFeedback(
       logger,
     });
 
-    const updateErr = await updateEndpointFeedbackRefundDetails(
+    const updateErr = await updateFeedbackRefundDetails(
       feedbackId,
       creditsRefunded,
       policy,

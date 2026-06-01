@@ -47,7 +47,7 @@ export type FeedbackRecordOptions = {
   windowExpiredMessage?: string;
   maxAgeSec?: number;
   dailyCapCredits?: number;
-  source: "endpoint_feedback" | "search_feedback";
+  source: "feedback" | "search_feedback";
 };
 
 export type FeedbackRecordResult = {

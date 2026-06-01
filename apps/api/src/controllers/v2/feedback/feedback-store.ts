@@ -12,7 +12,7 @@ import {
 
 type DbError = { code?: string } & Record<string, unknown>;
 
-type ExistingEndpointFeedback = {
+type ExistingFeedback = {
   id: string;
   credits_refunded: number | null;
 };
@@ -83,7 +83,7 @@ export async function lookupFeedbackJob(
   };
 }
 
-export async function insertEndpointFeedback(params: {
+export async function insertFeedback(params: {
   feedbackId: string;
   options: FeedbackRecordOptions;
   job: FeedbackJobRow;
@@ -91,15 +91,16 @@ export async function insertEndpointFeedback(params: {
   apiKeyId?: number | null;
 }): Promise<DbError | null> {
   const { feedbackId, options, job, dbTeamId, apiKeyId } = params;
-  const { error } = await supabase_service.from("endpoint_feedback").insert({
+  const { error } = await supabase_service.from("search_feedback").insert({
     id: feedbackId,
+    search_id: options.endpoint === "search" ? options.jobId : null,
     endpoint: options.endpoint,
     job_id: options.jobId,
     request_id: job.request_id,
     api_version: "v2",
     team_id: dbTeamId,
     api_key_id: apiKeyId ?? null,
-    rating: options.feedback.rating,
+    overall_rating: options.feedback.rating,
     issue_types: options.feedback.issues ?? [],
     tags: options.feedback.tags ?? [],
     comment: options.feedback.note ?? null,
@@ -120,29 +121,66 @@ export async function insertEndpointFeedback(params: {
   return error as DbError | null;
 }
 
-export async function findExistingEndpointFeedback(
+async function findFeedbackByJob(
   dbTeamId: string,
   endpoint: EndpointFeedbackEndpoint,
   jobId: string,
-): Promise<ExistingEndpointFeedback | null> {
-  const { data } = await supabase_rr_service
-    .from("endpoint_feedback")
+): Promise<ExistingFeedback | null> {
+  const { data, error } = await supabase_rr_service
+    .from("search_feedback")
     .select("id, credits_refunded")
     .eq("team_id", dbTeamId)
     .eq("endpoint", endpoint)
     .eq("job_id", jobId)
     .single();
 
-  return data as ExistingEndpointFeedback | null;
+  if (error) {
+    if (isPostgrestNoRowsError(error)) return null;
+    throw error;
+  }
+
+  return data as ExistingFeedback | null;
 }
 
-export async function updateEndpointFeedbackRefundDetails(
+async function findSearchFeedbackByLegacyId(
+  dbTeamId: string,
+  searchId: string,
+): Promise<ExistingFeedback | null> {
+  const { data, error } = await supabase_rr_service
+    .from("search_feedback")
+    .select("id, credits_refunded")
+    .eq("team_id", dbTeamId)
+    .eq("search_id", searchId)
+    .single();
+
+  if (error) {
+    if (isPostgrestNoRowsError(error)) return null;
+    throw error;
+  }
+
+  return data as ExistingFeedback | null;
+}
+
+export async function findExistingFeedback(
+  dbTeamId: string,
+  endpoint: EndpointFeedbackEndpoint,
+  jobId: string,
+): Promise<ExistingFeedback | null> {
+  return (
+    (await findFeedbackByJob(dbTeamId, endpoint, jobId)) ??
+    (endpoint === "search"
+      ? await findSearchFeedbackByLegacyId(dbTeamId, jobId)
+      : null)
+  );
+}
+
+export async function updateFeedbackRefundDetails(
   feedbackId: string,
   creditsRefunded: number,
   policy: RefundPolicySnapshot,
 ): Promise<DbError | null> {
   const { error } = await supabase_service
-    .from("endpoint_feedback")
+    .from("search_feedback")
     .update({
       credits_refunded: creditsRefunded,
       refund_policy: policy,

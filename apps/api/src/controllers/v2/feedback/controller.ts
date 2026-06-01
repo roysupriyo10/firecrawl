@@ -32,7 +32,7 @@ export async function feedbackController(
     endpoint: parsedBody.endpoint,
     jobId: parsedBody.jobId,
     feedback: toFeedbackInput(parsedBody),
-    source: "endpoint_feedback",
+    source: "feedback",
   });
 
   return res.status(result.status).json(result.body);
