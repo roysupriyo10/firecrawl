@@ -26,11 +26,10 @@ if (!Object.getOwnPropertyDescriptor(proto, "innerText")) {
 
 const context = dom.getInternalVMContext();
 
-// Bridge askLlm back through the sandbox host-callback to the API worker, which
-// owns the Groq key + the persistent cache. Returns null on any failure so a bad
-// inner call can't sink the extraction (the generated code guards for null).
+// Bridge askLlm back through the sandbox host-callback to the API worker.
 dom.window.askLlm = (prompt, schema) =>
-  Promise.resolve(host("askLlm", { prompt: String(prompt == null ? "" : prompt), schema: schema == null ? null : schema }))
+  Promise.resolve()
+    .then(() => host("askLlm", { prompt: String(prompt == null ? "" : prompt), schema: schema == null ? null : schema }))
     .catch(() => null);
 
 // Stringify inside the context so the result crosses the realm boundary as a

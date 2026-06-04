@@ -6,7 +6,10 @@ import { eq } from "drizzle-orm";
 import { db, dbRr } from "../../../db/connection";
 import * as schema from "../../../db/schema";
 import { extractDeterministicJson } from "../../../lib/deterministicJson/extract";
-import { CODE_SANDBOX_URL } from "../../../lib/deterministicJson/config";
+import {
+  CODE_SANDBOX_URL,
+  SANDBOX_TIMEOUT_MS,
+} from "../../../lib/deterministicJson/config";
 import type { CacheBackend } from "../../../lib/deterministicJson/core/cache";
 import type { SandboxRunner } from "../../../lib/deterministicJson/sandbox/runExtractor";
 
@@ -95,9 +98,11 @@ function sandboxRunner(endpoint: string): SandboxRunner {
     new Promise((resolve, reject) => {
       const ws = new WebSocket(endpoint);
       let done = false;
+      let timer: ReturnType<typeof setTimeout>;
       const finish = (err: Error | null, value?: unknown) => {
         if (done) return;
         done = true;
+        clearTimeout(timer);
         try {
           ws.close();
         } catch {
@@ -105,6 +110,11 @@ function sandboxRunner(endpoint: string): SandboxRunner {
         }
         err ? reject(err) : resolve(value);
       };
+      timer = setTimeout(
+        () =>
+          finish(new Error(`sandbox timed out after ${SANDBOX_TIMEOUT_MS}ms`)),
+        SANDBOX_TIMEOUT_MS,
+      );
       ws.on("open", () =>
         ws.send(
           JSON.stringify({ type: "run", code: job.code, input: job.input }),

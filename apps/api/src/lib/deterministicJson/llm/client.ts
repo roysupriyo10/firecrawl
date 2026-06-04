@@ -183,18 +183,27 @@ export function makeAskLlm(
     );
     const cached = await cache.getLlm(cacheKey);
     if (cached) {
-      await cache.touch?.(cacheKey);
-      return structured
-        ? finalize(cached.response)
-        : normalizePlainText(cached.response);
+      try {
+        const value = structured
+          ? finalize(cached.response)
+          : normalizePlainText(cached.response);
+        await cache.touch?.(cacheKey);
+        return value;
+      } catch (err) {
+        // Fall through to a fresh call; otherwise the parse error sinks the
+        // whole ask to null via ask()'s catch.
+        log(
+          `ignoring unparseable cached askLlm response: ${errorMessage(err)}`,
+        );
+      }
     }
-
-    if (apiCalls >= maxCalls)
-      throw new Error(`askLlm call budget exhausted (${maxCalls})`);
-    apiCalls++;
 
     let lastError = "";
     for (let attempt = 1; attempt <= ASK_LLM_RETRIES; attempt++) {
+      if (apiCalls >= maxCalls)
+        throw new Error(`askLlm call budget exhausted (${maxCalls})`);
+      apiCalls++;
+
       let raw = "";
       try {
         const res = await generateText({

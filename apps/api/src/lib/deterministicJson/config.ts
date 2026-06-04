@@ -21,3 +21,5 @@ export const ANCHOR_PICKER_MAX_TOKENS = 2_000;
 export const ASK_LLM_MAX_TOKENS = 2_048;
 
 export const ASK_LLM_MAX_CALLS = 50;
+
+export const SANDBOX_TIMEOUT_MS = 120_000;

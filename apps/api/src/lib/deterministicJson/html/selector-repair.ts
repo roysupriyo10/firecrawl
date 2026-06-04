@@ -23,6 +23,35 @@ function extractSelectorLiterals(code: string): string[] {
   return [...out];
 }
 
+// Relax child combinators to descendant, but not a `>` inside [attr] or quotes.
+function loosenCombinators(selector: string): string {
+  let out = "";
+  let depth = 0;
+  let quote = "";
+  for (let i = 0; i < selector.length; i++) {
+    const ch = selector[i]!;
+    if (quote) {
+      out += ch;
+      if (ch === quote && selector[i - 1] !== "\\") quote = "";
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      out += ch;
+    } else if (ch === "[") {
+      depth++;
+      out += ch;
+    } else if (ch === "]") {
+      depth = Math.max(0, depth - 1);
+      out += ch;
+    } else if (ch === ">" && depth === 0) {
+      out = out.replace(/\s+$/, "") + " ";
+      while (i + 1 < selector.length && /\s/.test(selector[i + 1]!)) i++;
+    } else {
+      out += ch;
+    }
+  }
+  return out.trim();
+}
+
 export function tooStrictSelectors(
   code: string,
   html: string,
@@ -42,7 +71,7 @@ export function tooStrictSelectors(
   const out: TooStrictSelector[] = [];
   for (const selector of selectors) {
     if (count(selector) !== 0) continue;
-    const loosened = selector.replace(/\s*>\s*/g, " ");
+    const loosened = loosenCombinators(selector);
     const loosenedCount = count(loosened);
     if (loosenedCount != null && loosenedCount > 0) {
       out.push({ selector, loosened, count: loosenedCount });

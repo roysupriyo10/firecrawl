@@ -75,9 +75,9 @@ function typeDefault(schema: JsonObject): unknown {
       const props = (schema.properties ?? {}) as JsonObject;
       const out: JsonObject = {};
       for (const key of (schema.required as string[] | undefined) ?? []) {
-        out[key] = isObject(props[key])
-          ? typeDefault(props[key] as JsonObject)
-          : null;
+        const sub = props[key];
+        out[key] =
+          isObject(sub) && !schemaAllowsNull(sub) ? typeDefault(sub) : null;
       }
       return out;
     }

@@ -31,12 +31,14 @@ function stripCodeFences(raw: string): string {
 function findTopLevelExtractor(
   source: ts.SourceFile,
 ): ts.FunctionDeclaration | undefined {
-  return source.statements.find(
+  // On a duplicate `function extract`, the last declaration wins at runtime.
+  const matches = source.statements.filter(
     (statement): statement is ts.FunctionDeclaration =>
       ts.isFunctionDeclaration(statement) &&
       statement.name?.text === "extract" &&
       !!statement.body,
   );
+  return matches[matches.length - 1];
 }
 
 function isAllowedTopLevelDeclaration(statement: ts.Statement): boolean {
@@ -48,10 +50,7 @@ function isAllowedTopLevelDeclaration(statement: ts.Statement): boolean {
 }
 
 export function cleanGeneratedCode(raw: string): string {
-  const code = stripCodeFences(raw)
-    .replace(/^\s*export\s+default\s+/i, "")
-    .replace(/^\s*export\s+/i, "")
-    .trim();
+  const code = stripCodeFences(raw).trim();
 
   const source = parseSource(code);
   const fn = findTopLevelExtractor(source);
@@ -66,8 +65,13 @@ export function cleanGeneratedCode(raw: string): string {
         !ts.isEmptyStatement(statement)),
   );
 
+  // The sandbox runs this as a plain script, so a surviving `export` would throw.
   return kept
-    .map(statement => code.slice(statement.getStart(source), statement.end))
+    .map(statement =>
+      code
+        .slice(statement.getStart(source), statement.end)
+        .replace(/^\s*export\s+(?:default\s+)?/i, ""),
+    )
     .join("\n\n")
     .trim();
 }
