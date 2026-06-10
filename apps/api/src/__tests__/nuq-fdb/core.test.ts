@@ -240,7 +240,7 @@ describeIf("NuQ FDB core", () => {
         { ownerId: owner, timesOutAt: new Date(Date.now() + 60_000) },
         gate(1, 2),
       ),
-    ).rejects.toThrow(/full|over its limit/i);
+    ).rejects.toThrow(/queue limit reached/i);
   });
 
   test("group lifecycle: numeric stats, finish detection, crawl_finished emission", async () => {

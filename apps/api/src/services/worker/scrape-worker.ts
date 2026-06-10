@@ -1307,10 +1307,14 @@ export const processJobInternal = async (job: NuQJob<ScrapeJobData>) => {
 };
 
 async function processJobWithTracing(job: NuQJob<ScrapeJobData>, logger: any) {
+  // FDB-backed jobs hold their concurrency slot through the queue lease; the
+  // Redis slot mirror and promotion-on-done below are PG-backend machinery
+  const isFdbJob = (job as any).backend === "fdb";
   try {
     try {
       let extendLockInterval: NodeJS.Timeout | null = null;
       if (
+        !isFdbJob &&
         job.data?.mode !== "kickoff" &&
         job.data?.team_id &&
         !job.data.skipNuq
@@ -1380,7 +1384,7 @@ async function processJobWithTracing(job: NuQJob<ScrapeJobData>, logger: any) {
         }
       }
     } finally {
-      if (!job.data.skipNuq) {
+      if (!job.data.skipNuq && !isFdbJob) {
         await concurrentJobDone(job);
       }
     }

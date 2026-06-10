@@ -2,6 +2,8 @@ import {
   pushConcurrencyLimitActiveJob,
   removeConcurrencyLimitActiveJob,
 } from "../../lib/concurrency-limit";
+import { isFdbTeam } from "./nuq-router";
+import { externalSlotsFdb } from "./nuq-fdb";
 import { isSelfHosted } from "../../lib/deployment";
 import { ScrapeJobTimeoutError, TransportableError } from "../../lib/error";
 import { logger as _logger } from "../../lib/logger";
@@ -137,20 +139,23 @@ async function count(teamId: string): Promise<number> {
   return count;
 }
 
-function startHeartbeat(teamId: string, holderId: string, intervalMs: number) {
+function startHeartbeat(
+  teamId: string,
+  holderId: string,
+  intervalMs: number,
+  fdbTeam: boolean,
+) {
   let stopped = false;
 
   const promise = (async () => {
     try {
       while (!stopped) {
-        await pushConcurrencyLimitActiveJob(teamId, holderId, 60 * 1000).catch(
-          () => {
-            _logger.warn("Failed to update concurrency limit active job", {
-              teamId,
-              jobId: holderId,
-            });
-          },
-        );
+        await mirrorSlotAcquire(teamId, holderId, fdbTeam).catch(() => {
+          _logger.warn("Failed to update concurrency limit active job", {
+            teamId,
+            jobId: holderId,
+          });
+        });
 
         const ok = await heartbeat(teamId, holderId);
         if (!ok) {
@@ -175,6 +180,33 @@ function startHeartbeat(teamId: string, holderId: string, intervalMs: number) {
   };
 }
 
+// Sync scrapes occupy queue capacity so async jobs see the team's real load.
+// PG-backed teams mirror into the Redis ZSET; FDB-backed teams consume an
+// external slot on the FDB ledger.
+async function mirrorSlotAcquire(
+  teamId: string,
+  holderId: string,
+  fdbTeam: boolean,
+): Promise<void> {
+  if (fdbTeam) {
+    await externalSlotsFdb.acquire(teamId, holderId, 60 * 1000);
+  } else {
+    await pushConcurrencyLimitActiveJob(teamId, holderId, 60 * 1000);
+  }
+}
+
+async function mirrorSlotRelease(
+  teamId: string,
+  holderId: string,
+  fdbTeam: boolean,
+): Promise<void> {
+  if (fdbTeam) {
+    await externalSlotsFdb.release(teamId, holderId);
+  } else {
+    await removeConcurrencyLimitActiveJob(teamId, holderId);
+  }
+}
+
 async function withSemaphore<T>(
   teamId: string,
   holderId: string,
@@ -192,6 +224,8 @@ async function withSemaphore<T>(
     return await func(false);
   }
 
+  const fdbTeam = await isFdbTeam(teamId);
+
   const { limited } = await acquireBlocking(teamId, holderId, limit, {
     base_delay_ms: 25,
     max_delay_ms: 250,
@@ -200,16 +234,16 @@ async function withSemaphore<T>(
   });
 
   const endTimer = semaphoreHoldDuration.startTimer();
-  const hb = startHeartbeat(teamId, holderId, SEMAPHORE_TTL / 2);
+  const hb = startHeartbeat(teamId, holderId, SEMAPHORE_TTL / 2, fdbTeam);
 
   activeSemaphores.inc();
   try {
-    await pushConcurrencyLimitActiveJob(teamId, holderId, 60 * 1000);
+    await mirrorSlotAcquire(teamId, holderId, fdbTeam);
 
     const result = await Promise.race([func(limited), hb.promise]);
     return result;
   } finally {
-    await removeConcurrencyLimitActiveJob(teamId, holderId).catch(() => {
+    await mirrorSlotRelease(teamId, holderId, fdbTeam).catch(() => {
       _logger.warn("Failed to remove concurrency limit active job", {
         teamId,
         jobId: holderId,

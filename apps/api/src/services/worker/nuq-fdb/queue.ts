@@ -3,6 +3,7 @@ import type { Transaction } from "foundationdb";
 import { Logger } from "winston";
 import { logger as _logger } from "../../../lib/logger";
 import { config } from "../../../config";
+import { QueueFullError } from "../../../lib/queue-full-error";
 import { getNuqFdbDatabase } from "./client";
 import {
   NuqFdbKeyspace,
@@ -54,11 +55,7 @@ import { NuqFdbGroupOps } from "./groups";
 
 const DATA_CHUNK_BYTES = 90 * 1024;
 
-export class QueueFullError extends Error {
-  constructor(message?: string) {
-    super(message ?? "Queue is full");
-  }
-}
+export { QueueFullError };
 
 export type NuQJobStatusCompat =
   | "queued"
@@ -210,9 +207,7 @@ export class NuQFdbQueue<JobData = any, JobReturnValue = any> {
           await tn.snapshot().get(ks.teamPendingCount(ownerId)),
         );
         if (pend + jobs.length > gate.queueCap) {
-          throw new QueueFullError(
-            `Team ${ownerId} concurrency queue is over its limit of ${gate.queueCap}`,
-          );
+          throw new QueueFullError(pend, gate.queueCap);
         }
 
         // big-limit teams tolerate a small admission overshoot in exchange for
@@ -709,6 +704,14 @@ export class NuQFdbQueue<JobData = any, JobReturnValue = any> {
     logger: Logger = _logger,
   ): Promise<NuQFdbJob<JobData, JobReturnValue> | null> {
     return await this.db.doTn(async tn => this.readJob(tn, id));
+  }
+
+  // cheap existence probe used by the dual-backend router
+  public async hasJob(id: string): Promise<boolean> {
+    return await this.db.doTn(async tn => {
+      const st = await tn.snapshot().get(this.ks.jobStatus(id));
+      return st !== undefined && st !== null;
+    });
   }
 
   public async getJobs(

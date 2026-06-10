@@ -38,6 +38,7 @@ import {
   GroupJobIndexValue,
 } from "./ops";
 import { NuQFdbQueue } from "./queue";
+import { NuqFdbExternalSlots } from "./slots";
 
 const SWEEP_LOCK_TTL_MS = 15_000;
 const SWEEP_BATCH = 50;
@@ -63,7 +64,10 @@ export class NuqFdbSweeper {
   private loop: NodeJS.Timeout | null = null;
   private running = false;
 
-  constructor(public readonly queues: NuQFdbQueue[]) {}
+  constructor(
+    public readonly queues: NuQFdbQueue[],
+    public readonly externalSlots: NuqFdbExternalSlots[] = [],
+  ) {}
 
   private get db() {
     return getNuqFdbDatabase();
@@ -100,6 +104,9 @@ export class NuqFdbSweeper {
       await this.sweepTeamRaiseTasks(queue, now, logger);
       await this.sweepJobExpiry(queue, now, logger);
       await this.sweepGroupExpiry(queue, now, logger);
+    }
+    for (const slots of this.externalSlots) {
+      await slots.sweepExpired(now, TIME_BUCKETS);
     }
   }
 

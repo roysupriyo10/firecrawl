@@ -2,6 +2,7 @@ import type { ScrapeJobData } from "../../../types";
 import { NuQFdbQueue, QueueFullError, normalizeOwnerId } from "./queue";
 import { NuQFdbJobGroup } from "./groups";
 import { NuqFdbSweeper } from "./sweeper";
+import { NuqFdbExternalSlots } from "./slots";
 import { isFdbConfigured, nuqFdbHealthCheck } from "./client";
 
 export { NuQFdbQueue, QueueFullError, normalizeOwnerId } from "./queue";
@@ -14,6 +15,7 @@ export type {
 export { NuQFdbJobGroup } from "./groups";
 export type { NuQFdbJobGroupInstance, NuQFdbGroupStatus } from "./groups";
 export { NuqFdbSweeper } from "./sweeper";
+export { NuqFdbExternalSlots } from "./slots";
 export { isFdbConfigured, nuqFdbHealthCheck } from "./client";
 
 export const scrapeQueueFdb = new NuQFdbQueue<ScrapeJobData, any>("scrape", {
@@ -33,11 +35,16 @@ export const crawlGroupFdb = new NuQFdbJobGroup(
   scrapeQueueFdb.groupOps!,
 );
 
+export const externalSlotsFdb = new NuqFdbExternalSlots(scrapeQueueFdb.ks);
+
 let sweeper: NuqFdbSweeper | null = null;
 
 export function getNuqFdbSweeper(): NuqFdbSweeper {
   if (!sweeper) {
-    sweeper = new NuqFdbSweeper([scrapeQueueFdb, crawlFinishedQueueFdb]);
+    sweeper = new NuqFdbSweeper(
+      [scrapeQueueFdb, crawlFinishedQueueFdb],
+      [externalSlotsFdb],
+    );
   }
   return sweeper;
 }

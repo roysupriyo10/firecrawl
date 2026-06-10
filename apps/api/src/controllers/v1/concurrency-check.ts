@@ -5,6 +5,8 @@ import {
 } from "./types";
 import { Response } from "express";
 import { getRedisConnection } from "../../../src/services/queue-service";
+import { fdbQueueEnabled } from "../../services/worker/nuq-router";
+import { scrapeQueueFdb } from "../../services/worker/nuq-fdb";
 
 // Basically just middleware and error wrapping
 export async function concurrencyCheckController(
@@ -19,9 +21,14 @@ export async function concurrencyCheckController(
     Infinity,
   );
 
+  // during the FDB migration a team can have load on both ledgers
+  const fdbActive = fdbQueueEnabled()
+    ? await scrapeQueueFdb.getTeamActiveCount(req.auth.team_id)
+    : 0;
+
   return res.status(200).json({
     success: true,
-    concurrency: activeJobsOfTeam.length,
+    concurrency: activeJobsOfTeam.length + fdbActive,
     maxConcurrency: req.acuc?.concurrency ?? 0,
   });
 }
