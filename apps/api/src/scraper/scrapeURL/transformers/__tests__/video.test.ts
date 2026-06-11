@@ -233,6 +233,46 @@ describe("fetchVideo", () => {
     expect(document.video).toBe("https://storage.example/video.mp4");
   });
 
+  it("falls back to legacy download when generic discovery request fails", async () => {
+    const fetchSpy = jest.fn(async (url: string, _init?: RequestInit) => {
+      if (url.endsWith("/videos")) {
+        throw new Error("connection reset");
+      }
+      if (url.endsWith("/supported-urls")) {
+        return {
+          ok: true,
+          json: async () => ({ regex: "https://www\\.youtube\\.com/watch" }),
+        };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({ public_url: "https://storage.example/video.mp4" }),
+      };
+    });
+    global.fetch = fetchSpy as any;
+    config.AVGRAB_SERVICE_URL = "https://avgrab.example";
+
+    const meta: any = {
+      url: "https://www.youtube.com/watch?v=abc123",
+      options: {
+        lockdown: false,
+        formats: [{ type: "video" }],
+      },
+      logger: { warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
+    };
+    const document: any = {};
+
+    await fetchVideo(meta, document);
+
+    expect(meta.logger.warn).toHaveBeenCalledWith(
+      "Generic video discovery failed",
+      { detail: "connection reset" },
+    );
+    expect(document.videos).toBeUndefined();
+    expect(document.video).toBe("https://storage.example/video.mp4");
+  });
+
   it("omits cookies from the avgrab request when no video cookies are available", async () => {
     const fetchSpy = mockSuccessfulAvgrab();
 

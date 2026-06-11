@@ -92,11 +92,19 @@ async function fetchGenericVideos(
       : {}),
   };
 
-  const response = await fetch(`${config.AVGRAB_SERVICE_URL}/videos`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(requestBody),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${config.AVGRAB_SERVICE_URL}/videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+  } catch (error) {
+    meta.logger.warn("Generic video discovery failed", {
+      detail: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
 
   if (response.status === 404) {
     meta.logger.debug("avgrab /videos endpoint is unavailable");
