@@ -281,6 +281,7 @@ class RoutedScrapeQueue {
     if (fdbQueueEnabled()) {
       const job = await scrapeQueueFdb.getJob(id, logger);
       if (job) return tagFdbJob(job as NuQJob<ScrapeJobData>);
+      if (fdbForced()) return null;
     }
     return scrapeQueuePg.getJob(id, logger);
   }
@@ -291,6 +292,8 @@ class RoutedScrapeQueue {
   ): Promise<NuQJob<ScrapeJobData>[]> {
     if (!fdbQueueEnabled()) return scrapeQueuePg.getJobs(ids, logger);
     const fdbJobs = await scrapeQueueFdb.getJobs(ids, logger);
+    if (fdbForced())
+      return fdbJobs.map(j => tagFdbJob(j as NuQJob<ScrapeJobData>));
     const found = new Set(fdbJobs.map(j => j.id));
     const missing = ids.filter(id => !found.has(id));
     const pgJobs =
@@ -373,6 +376,7 @@ class RoutedScrapeQueue {
       await scrapeQueueFdb.removeJob(id, logger);
       return;
     }
+    if (fdbForced()) return;
     await scrapeQueuePg.removeJob(id, logger);
   }
 
@@ -393,6 +397,7 @@ class RoutedScrapeQueue {
     if (fdbQueueEnabled() && (await scrapeQueueFdb.hasJob(id))) {
       return scrapeQueueFdb.waitForJob(id, timeout, logger);
     }
+    if (fdbForced()) throw new Error("Job not found");
     return scrapeQueuePg.waitForJob(id, timeout, logger) as Promise<T>;
   }
 
@@ -467,6 +472,7 @@ class RoutedCrawlFinishedQueue {
     if (fdbQueueEnabled()) {
       const job = await crawlFinishedQueueFdb.getJob(id, logger);
       if (job) return tagFdbJob(job as NuQJob<any>);
+      if (fdbForced()) return null;
     }
     return crawlFinishedQueuePg.getJob(id, logger);
   }
@@ -509,6 +515,7 @@ class RoutedCrawlGroup {
     if (fdbQueueEnabled()) {
       const g = await crawlGroupFdb.getGroup(id, logger);
       if (g) return g as NuQJobGroupInstance;
+      if (fdbForced()) return null;
     }
     return crawlGroupPg.getGroup(id, logger);
   }
@@ -517,9 +524,12 @@ class RoutedCrawlGroup {
     ownerId: string,
     logger: Logger = _logger,
   ): Promise<NuQJobGroupInstance[]> {
-    const pg = await crawlGroupPg.getOngoingByOwner(ownerId, logger);
-    if (!fdbQueueEnabled()) return pg;
+    if (!fdbQueueEnabled()) {
+      return crawlGroupPg.getOngoingByOwner(ownerId, logger);
+    }
     const fdb = await crawlGroupFdb.getOngoingByOwner(ownerId, logger);
+    if (fdbForced()) return fdb as NuQJobGroupInstance[];
+    const pg = await crawlGroupPg.getOngoingByOwner(ownerId, logger);
     const seen = new Set(fdb.map(g => g.id));
     return [
       ...(fdb as NuQJobGroupInstance[]),
