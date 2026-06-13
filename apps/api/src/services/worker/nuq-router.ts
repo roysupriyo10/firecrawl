@@ -26,6 +26,8 @@ import {
   crawlGroupFdb,
   externalSlotsFdb,
   isFdbConfigured,
+  nuqFdbHealthCheck,
+  withFdbTimeout,
   NuQFdbQueue,
   NuQFdbJob,
 } from "./nuq-fdb";
@@ -53,6 +55,7 @@ function fdbForced(): boolean {
 }
 
 const fdbFallbackLastWarn = new Map<string, number>();
+const FDB_OPTIONAL_DEQUEUE_TIMEOUT_MS = 500;
 
 function logFdbFallback(
   logger: Logger,
@@ -68,6 +71,14 @@ function logFdbFallback(
     operation,
     error,
   });
+}
+
+async function optionalFdb<T>(operation: () => Promise<T>): Promise<T> {
+  if (fdbForced()) return operation();
+  if (!(await nuqFdbHealthCheck(FDB_OPTIONAL_DEQUEUE_TIMEOUT_MS))) {
+    throw new Error("FDB health check failed before optional dequeue");
+  }
+  return await withFdbTimeout(operation(), FDB_OPTIONAL_DEQUEUE_TIMEOUT_MS);
 }
 
 // Whether NEW work for this team should go to FDB. Existing crawls follow
@@ -249,7 +260,9 @@ class RoutedScrapeQueue {
   ): Promise<NuQJob<ScrapeJobData> | null> {
     if (fdbQueueEnabled()) {
       try {
-        const job = await scrapeQueueFdb.getJobToProcess(logger);
+        const job = await optionalFdb(() =>
+          scrapeQueueFdb.getJobToProcess(logger),
+        );
         if (job) {
           this.inflightBackend.set(job.id, "fdb");
           return tagFdbJob(job as NuQJob<ScrapeJobData>);
@@ -477,7 +490,9 @@ class RoutedCrawlFinishedQueue {
   ): Promise<NuQJob<any> | null> {
     if (fdbQueueEnabled()) {
       try {
-        const job = await crawlFinishedQueueFdb.getJobToProcess(logger);
+        const job = await optionalFdb(() =>
+          crawlFinishedQueueFdb.getJobToProcess(logger),
+        );
         if (job) {
           this.inflightBackend.set(job.id, "fdb");
           return tagFdbJob(job as NuQJob<any>);
