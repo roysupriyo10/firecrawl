@@ -307,66 +307,76 @@ describe("/v2/parse", () => {
       const key = getUnparsedUploadRefsKey(capIdentity.teamId);
       await getRedisConnection().del(key);
 
-      const oldScore = Date.now() - parseUploadUnparsedWindowMs - 1000;
-      await getRedisConnection().zadd(
-        key,
-        ...Array.from({ length: 10 }).flatMap((_, i) => [oldScore, `old-${i}`]),
-      );
+      try {
+        const oldScore = Date.now() - parseUploadUnparsedWindowMs - 1000;
+        await getRedisConnection().zadd(
+          key,
+          ...Array.from({ length: 10 }).flatMap((_, i) => [
+            oldScore,
+            `old-${i}`,
+          ]),
+        );
 
-      const first = await mintRequiredUploadRef(capIdentity, "cap-0.html");
+        const first = await mintRequiredUploadRef(capIdentity, "cap-0.html");
 
-      const refs = [first];
-      for (let i = 1; i < 10; i++) {
-        const init = await mintRequiredUploadRef(capIdentity, `cap-${i}.html`);
-        refs.push(init);
-      }
+        const refs = [first];
+        for (let i = 1; i < 10; i++) {
+          const init = await mintRequiredUploadRef(
+            capIdentity,
+            `cap-${i}.html`,
+          );
+          refs.push(init);
+        }
 
-      const rejected = await request(TEST_API_URL)
-        .post("/v2/parse/upload-url")
-        .set("Authorization", `Bearer ${capIdentity.apiKey}`)
-        .set("Content-Type", "application/json")
-        .send({
-          filename: "cap-rejected.html",
-          contentType: "text/html",
-        });
-
-      expect(rejected.statusCode).toBe(429);
-      expect(rejected.body.success).toBe(false);
-      expect(rejected.body.code).toBe("PARSE_UPLOAD_UNPARSED_LIMIT_REACHED");
-
-      const upload = await uploadToMintedTarget(
-        refs[0],
-        htmlFixture,
-        "cap-0.html",
-      );
-      expect([200, 201, 204]).toContain(upload.status);
-
-      const parsed = await request(TEST_API_URL)
-        .post("/v2/parse")
-        .set("Authorization", `Bearer ${capIdentity.apiKey}`)
-        .set("Content-Type", "application/json")
-        .send({
-          uploadRef: refs[0].uploadRef,
-          formats: ["markdown"],
-        });
-
-      expect(parsed.statusCode, JSON.stringify(parsed.body)).toBe(200);
-      expect(parsed.body.success).toBe(true);
-
-      const acceptedAfterParse = await waitForSingleRow(async () => {
-        const init = await request(TEST_API_URL)
+        const rejected = await request(TEST_API_URL)
           .post("/v2/parse/upload-url")
           .set("Authorization", `Bearer ${capIdentity.apiKey}`)
           .set("Content-Type", "application/json")
           .send({
-            filename: "cap-accepted-after-parse.html",
+            filename: "cap-rejected.html",
             contentType: "text/html",
           });
 
-        return init.statusCode === 200 ? init : null;
-      });
+        expect(rejected.statusCode).toBe(429);
+        expect(rejected.body.success).toBe(false);
+        expect(rejected.body.code).toBe("PARSE_UPLOAD_UNPARSED_LIMIT_REACHED");
 
-      expect(acceptedAfterParse?.body.success).toBe(true);
+        const upload = await uploadToMintedTarget(
+          refs[0],
+          htmlFixture,
+          "cap-0.html",
+        );
+        expect([200, 201, 204]).toContain(upload.status);
+
+        const parsed = await request(TEST_API_URL)
+          .post("/v2/parse")
+          .set("Authorization", `Bearer ${capIdentity.apiKey}`)
+          .set("Content-Type", "application/json")
+          .send({
+            uploadRef: refs[0].uploadRef,
+            formats: ["markdown"],
+          });
+
+        expect(parsed.statusCode, JSON.stringify(parsed.body)).toBe(200);
+        expect(parsed.body.success).toBe(true);
+
+        const acceptedAfterParse = await waitForSingleRow(async () => {
+          const init = await request(TEST_API_URL)
+            .post("/v2/parse/upload-url")
+            .set("Authorization", `Bearer ${capIdentity.apiKey}`)
+            .set("Content-Type", "application/json")
+            .send({
+              filename: "cap-accepted-after-parse.html",
+              contentType: "text/html",
+            });
+
+          return init.statusCode === 200 ? init : null;
+        });
+
+        expect(acceptedAfterParse?.body.success).toBe(true);
+      } finally {
+        await getRedisConnection().del(key);
+      }
     },
     scrapeTimeout,
   );
