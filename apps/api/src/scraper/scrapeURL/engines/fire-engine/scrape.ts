@@ -48,7 +48,7 @@ export type FireEngineScrapeRequestCommon = {
   instantReturn?: boolean; // default: false
   geolocation?: { country?: string; languages?: string[] };
 
-  mobileProxy?: boolean; // leave it undefined if user doesn't specify
+  mobileProxy?: boolean | "enhanced"; // true = stealth, "enhanced" = enhanced proxy tier
 
   timeout?: number;
   saveScrapeResultToGCS?: boolean;
@@ -156,7 +156,7 @@ const successSchema = z.object({
 
   docUrl: z.string().optional(),
 
-  usedMobileProxy: z.boolean().optional(),
+  usedMobileProxy: z.union([z.boolean(), z.literal("enhanced")]).optional(),
   youtubeTranscriptContent: z.any().optional(),
   timezone: z.string().optional(),
 });

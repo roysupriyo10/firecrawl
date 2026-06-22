@@ -113,7 +113,7 @@ const successSchema = z.object({
 
   docUrl: z.string().optional(),
 
-  usedMobileProxy: z.boolean().optional(),
+  usedMobileProxy: z.union([z.boolean(), z.literal("enhanced")]).optional(),
   youtubeTranscriptContent: z.any().optional(),
   timezone: z.string().optional(),
 });

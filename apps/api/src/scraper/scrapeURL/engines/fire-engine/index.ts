@@ -43,6 +43,23 @@ import { createHash } from "node:crypto";
 /** Default wait (ms) before running the branding script when user did not set waitFor. Lets the page settle so DOM/images are ready and reduces JS errors. */
 const BRANDING_DEFAULT_WAIT_MS = 2000;
 
+/** Resolve the `mobileProxy` request value from scrape options and feature flags. */
+function resolveMobileProxy(
+  meta: Meta,
+): boolean | "enhanced" | undefined {
+  if (!meta.featureFlags.has("stealthProxy")) return undefined;
+  return meta.options.proxy === "enhanced" ? "enhanced" : true;
+}
+
+/** Map fire-engine's `usedMobileProxy` response to a `proxyUsed` label. */
+function resolveProxyUsed(
+  usedMobileProxy: boolean | "enhanced" | undefined,
+): "basic" | "stealth" | "enhanced" {
+  if (usedMobileProxy === "enhanced") return "enhanced";
+  if (usedMobileProxy) return "stealth";
+  return "basic";
+}
+
 // This function does not take `Meta` on purpose. It may not access any
 // meta values to construct the request -- that must be done by the
 // `scrapeURLWithFireEngine*` functions.
@@ -361,7 +378,7 @@ export async function scrapeURLWithFireEngineChromeCDP(
       mobile: meta.options.mobile,
       timeout: meta.abort.scrapeTimeout() ?? 300000,
       disableSmartWaitCache: meta.internalOptions.disableSmartWaitCache,
-      mobileProxy: meta.featureFlags.has("stealthProxy"),
+      mobileProxy: resolveMobileProxy(meta),
       saveScrapeResultToGCS:
         !meta.internalOptions.zeroDataRetention &&
         meta.internalOptions.saveScrapeResultToGCS,
@@ -464,7 +481,7 @@ export async function scrapeURLWithFireEngineChromeCDP(
           }
         : {}),
 
-      proxyUsed: response.usedMobileProxy ? "stealth" : "basic",
+      proxyUsed: resolveProxyUsed(response.usedMobileProxy),
       youtubeTranscriptContent: response.youtubeTranscriptContent,
       timezone: response.timezone,
       ...(hasAudio || hasVideo || shouldRunYoutubePostprocessor
@@ -496,7 +513,7 @@ export async function scrapeURLWithFireEngineTLSClient(
       atsv: meta.internalOptions.atsv,
       geolocation: meta.options.location,
       disableJsDom: meta.internalOptions.v0DisableJsDom,
-      mobileProxy: meta.featureFlags.has("stealthProxy"),
+      mobileProxy: resolveMobileProxy(meta),
 
       timeout: meta.abort.scrapeTimeout() ?? 300000,
       saveScrapeResultToGCS:
@@ -535,7 +552,7 @@ export async function scrapeURLWithFireEngineTLSClient(
           x => x[0].toLowerCase() === "content-type",
         ) ?? [])[1] ?? undefined,
 
-      proxyUsed: response.usedMobileProxy ? "stealth" : "basic",
+      proxyUsed: resolveProxyUsed(response.usedMobileProxy),
       timezone: response.timezone,
     };
   });

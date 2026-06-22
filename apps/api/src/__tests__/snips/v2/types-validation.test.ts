@@ -437,6 +437,17 @@ describe("V2 Types Validation", () => {
       expect(result.timeout).toBe(120000); // Should be transformed
     });
 
+    it("should handle enhanced proxy timeout transformation", () => {
+      const input: ScrapeRequestInput = {
+        url: "https://example.com",
+        proxy: "enhanced",
+        timeout: 30000,
+      };
+
+      const result = scrapeRequestSchema.parse(input);
+      expect(result.timeout).toBe(120000); // Should be transformed
+    });
+
     it("should handle auto proxy timeout transformation", () => {
       const input: ScrapeRequestInput = {
         url: "https://example.com",

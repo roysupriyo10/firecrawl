@@ -28,7 +28,12 @@ async function feResToFilePrefetch(
     status: feRes.pageStatusCode,
     url: feRes.url,
     filePath,
-    proxyUsed: feRes.usedMobileProxy ? "stealth" : "basic",
+    proxyUsed:
+      feRes.usedMobileProxy === "enhanced"
+        ? "enhanced"
+        : feRes.usedMobileProxy
+          ? "stealth"
+          : "basic",
     contentType,
   };
 }

@@ -1295,6 +1295,23 @@ describe("Scrape tests", () => {
       );
 
       it.concurrent(
+        "enhanced works and reports proxyUsed as enhanced",
+        async () => {
+          const res = await scrape(
+            {
+              url: base,
+              proxy: "enhanced",
+              timeout: scrapeTimeout * 2,
+            },
+            identity,
+          );
+
+          expect(res.metadata.proxyUsed).toBe("enhanced");
+        },
+        scrapeTimeout * 2,
+      );
+
+      it.concurrent(
         "auto works properly on non-stealth site",
         async () => {
           const res = await scrape(

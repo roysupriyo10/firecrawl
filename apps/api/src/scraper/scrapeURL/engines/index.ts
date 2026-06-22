@@ -159,7 +159,7 @@ export type EngineScrapeResult = {
   postprocessorsUsed?: string[];
   audioCookies?: BrowserCookie[];
 
-  proxyUsed: "basic" | "stealth";
+  proxyUsed: "basic" | "stealth" | "enhanced";
   timezone?: string;
 };
 
