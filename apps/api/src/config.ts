@@ -284,12 +284,6 @@ const configSchema = z.object({
   BACKGROUND_INDEX_TEAM_ID: z.string().optional(),
   PRECRAWL_TEAM_ID: z.string().optional(),
 
-  // Payment (x402)
-  X402_ENDPOINT_PRICE_USD: z.string().optional(),
-  X402_NETWORK: z.string().optional(),
-  X402_PAY_TO_ADDRESS: ethereumAddress,
-  X402_FACILITATOR_URL: z.string().url().optional(),
-
   // System
   MAX_CPU: z.coerce.number().default(0.8),
   MAX_RAM: z.coerce.number().default(0.8),
