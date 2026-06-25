@@ -5,7 +5,7 @@ import { getInnerJson } from "@mendable/firecrawl-rs";
 import { Engine, EngineScrapeResult } from "../types";
 import { Meta } from "../../lib/meta";
 
-export async function scrapeURLWithPlaywright(
+async function scrapeURLWithPlaywright(
   meta: Meta,
 ): Promise<EngineScrapeResult> {
   const response = await robustFetch({

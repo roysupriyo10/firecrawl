@@ -1,6 +1,4 @@
 import { ErrorCodes, TransportableError } from "../../lib/error";
-import { Engine } from "./engines";
-import { isSelfHosted } from "../../lib/deployment";
 
 export class EngineError extends Error {
   constructor(message?: string, options?: ErrorOptions) {
@@ -25,36 +23,6 @@ export class XTwitterConfigurationError extends TransportableError {
     data: ReturnType<typeof this.prototype.serialize>,
   ) {
     const x = new XTwitterConfigurationError();
-    x.stack = data.stack;
-    return x;
-  }
-}
-
-export class NoEnginesLeftError extends TransportableError {
-  public fallbackList: Engine[];
-
-  constructor(fallbackList: Engine[]) {
-    const enginesTriedStr = fallbackList.join(", ");
-    const message = isSelfHosted()
-      ? `All scraping engines failed to retrieve content from this URL. Engines tried: [${enginesTriedStr}]. This usually happens when: (1) The URL is invalid or the page doesn't exist (404), (2) The website is blocking automated access, (3) The website is down or unreachable, (4) The page requires authentication. Double check the URL is correct and accessible in a browser. Check your server logs for more detailed error information from each engine.`
-      : `All scraping engines failed to retrieve content from this URL. Engines tried: [${enginesTriedStr}]. This usually happens when: (1) The URL is invalid or the page doesn't exist (404), (2) The website is blocking automated access, (3) The website is down or unreachable, (4) The page requires authentication. Double check the URL is correct and accessible in a browser. If the issue persists, contact us at help@firecrawl.com with your request ID for investigation.`;
-
-    super("SCRAPE_ALL_ENGINES_FAILED", message);
-    this.fallbackList = fallbackList;
-  }
-
-  serialize() {
-    return {
-      ...super.serialize(),
-      fallbackList: this.fallbackList,
-    };
-  }
-
-  static deserialize(
-    _: ErrorCodes,
-    data: ReturnType<typeof this.prototype.serialize>,
-  ) {
-    const x = new NoEnginesLeftError(data.fallbackList);
     x.stack = data.stack;
     return x;
   }
@@ -484,35 +452,25 @@ export class BrandingNotSupportedError extends TransportableError {
   }
 }
 
-export class FEPageLoadFailed extends Error {
+export class FEPageLoadFailed extends TransportableError {
   constructor() {
     super(
+      "SCRAPE_PAGE_LOAD_FAILED",
       "The page failed to load with the specified timeout. Please increase the timeout parameter in your request.",
     );
   }
-}
 
-export class EngineSnipedError extends Error {
-  name = "EngineSnipedError";
-
-  constructor() {
-    super("Engine got sniped");
+  serialize() {
+    return super.serialize();
   }
-}
 
-export class EngineUnsuccessfulError extends Error {
-  name = "EngineUnsuccessfulError";
-
-  constructor(engine: Engine) {
-    super(`Engine ${engine} was unsuccessful`);
-  }
-}
-
-export class WaterfallNextEngineSignal extends Error {
-  name = "WaterfallNextEngineSignal";
-
-  constructor() {
-    super("Waterfall next engine");
+  static deserialize(
+    _: ErrorCodes,
+    data: ReturnType<typeof this.prototype.serialize>,
+  ) {
+    const x = new FEPageLoadFailed();
+    x.stack = data.stack;
+    return x;
   }
 }
 

@@ -2,7 +2,7 @@ import { ScrapeActionContent } from "../../../lib/entities";
 import { BrandingProfile } from "../../../types/branding";
 import { FeatureFlag } from "../lib/feature-flags";
 import { Meta } from "../lib/meta";
-import { PdfMetadata } from "./pdf/types";
+import { PdfMetadata } from "../parsers/pdf/types";
 
 export type BrowserCookie = {
   name: string;
@@ -69,6 +69,6 @@ export type Engine = {
 
 export type SpecialEngine = Engine & {
   special: {
-    regex: RegExp;
+    matches(url: string): boolean;
   };
 };

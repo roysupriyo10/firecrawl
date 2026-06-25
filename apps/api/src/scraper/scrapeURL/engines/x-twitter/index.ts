@@ -2,7 +2,7 @@ import { xai } from "@ai-sdk/xai";
 import { generateText, jsonSchema, Output } from "ai";
 import { config } from "../../../../config";
 import { EngineError, XTwitterConfigurationError } from "../../error";
-import { safeMarkdownToHtml } from "../pdf/markdownToHtml";
+import { safeMarkdownToHtml } from "../../parsers/pdf/markdownToHtml";
 import { Meta } from "../../lib/meta";
 import { Engine, EngineScrapeResult, SpecialEngine } from "../types";
 
@@ -296,13 +296,11 @@ function parseXTwitterUrl(url: string): XTwitterUrl | null {
   return null;
 }
 
-export function isXTwitterUrl(url: string): boolean {
+function isXTwitterUrl(url: string): boolean {
   return parseXTwitterUrl(url) !== null;
 }
 
-export async function scrapeURLWithXTwitter(
-  meta: Meta,
-): Promise<EngineScrapeResult> {
+async function scrapeURLWithXTwitter(meta: Meta): Promise<EngineScrapeResult> {
   const urlToScrape = meta.rewrittenUrl ?? meta.url;
   const xUrl = parseXTwitterUrl(urlToScrape);
 
@@ -678,6 +676,6 @@ export const xTwitterSpecialEngine: SpecialEngine = {
     });
   },
   special: {
-    regex: /hi/, // TODO:
+    matches: isXTwitterUrl,
   },
 };

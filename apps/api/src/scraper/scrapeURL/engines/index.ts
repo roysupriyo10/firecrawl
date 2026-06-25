@@ -6,7 +6,7 @@ import { Meta } from "../lib/meta";
 import { fetchEngine } from "./fetch";
 import { fireEngine } from "./fire-engine";
 import { playwrightEngine } from "./playwright";
-import { Engine, SpecialEngine } from "./types";
+import type { Engine, SpecialEngine } from "./types";
 import { wikipediaSpecialEngine } from "./wikipedia";
 import { xTwitterSpecialEngine } from "./x-twitter";
 
@@ -64,9 +64,7 @@ export const mainEngine: Engine = useFireEngine
     : fetchEngine;
 
 export function resolveSpecialEngineFromURL(url: string): SpecialEngine | null {
-  return specialEngines.find(x => url.match(x.special.regex)) ?? null;
+  return specialEngines.find(x => x.special.matches(url)) ?? null;
 }
 
-export function getSpecialEngineRegexes(): RegExp[] {
-  return specialEngines.map(x => x.special.regex);
-}
+export type { FeatureFlag } from "../lib/feature-flags";

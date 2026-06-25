@@ -51,7 +51,6 @@ export async function sendDocumentToIndex(meta: Meta, document: Document) {
     !meta.internalOptions.isParse &&
     !meta.internalOptions.zeroDataRetention &&
     meta.winnerEngine !== "index" &&
-    !(meta.winnerEngine === "pdf" && !shouldParsePDF(meta.options.parsers)) &&
     !meta.options.parsers?.some(parser => {
       if (
         typeof parser === "object" &&
@@ -219,9 +218,7 @@ export async function sendDocumentToIndex(meta: Meta, document: Document) {
 
 const errorCountToRegister = 3;
 
-export async function scrapeURLWithIndex(
-  meta: Meta,
-): Promise<EngineScrapeResult> {
+async function scrapeURLWithIndex(meta: Meta): Promise<EngineScrapeResult> {
   const startTime = Date.now();
   const normalizedURL = normalizeURLForIndex(meta.url);
   const urlHash = hashURL(normalizedURL);

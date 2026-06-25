@@ -9,15 +9,9 @@ import { CostTracking } from "../../../lib/cost-tracking";
 import { logger as _logger } from "../../../lib/logger";
 import { ScrapeJobTimeoutError } from "../../../lib/error";
 import { rewriteUrl } from "./rewriteUrl";
-import {
-  isDocumentUpload,
-  isHtmlUpload,
-  isPdfUpload,
-} from "./file-format-check";
 import { buildFeatureFlags, FeatureFlag } from "./feature-flags";
-import { writeUploadedFileToTemp } from "./tempfiles";
 import { ZDRViolationError } from "../error";
-import { BrowserCookie, Engine, EngineName } from "../engines/types";
+import { BrowserCookie, EngineName } from "../engines/types";
 
 export type Meta = {
   id: string;
@@ -28,23 +22,6 @@ export type Meta = {
   logger: Logger;
   abort: AbortManager;
   featureFlags: Set<FeatureFlag>;
-  prefetch:
-    | {
-        filePath: string;
-        url?: string;
-        status: number;
-        proxyUsed: "basic" | "stealth";
-        contentType?: string;
-      }
-    | {
-        bodyBuffer: Buffer;
-        url?: string;
-        status: number;
-        proxyUsed: "basic" | "stealth";
-        contentType?: string;
-      }
-    | null
-    | undefined; // undefined: no prefetch yet, null: prefetch came back empty
   costTracking: CostTracking;
   winnerEngine?: EngineName;
   abortHandle?: NodeJS.Timeout;
@@ -77,8 +54,6 @@ export async function buildMetaObject(
           options.timeout,
         )
       : undefined;
-
-  let prefetch: Meta["prefetch"] = undefined;
 
   const effectiveOptions = applyScrapeOptionsDefaults(options);
 
@@ -124,7 +99,6 @@ export async function buildMetaObject(
         : undefined,
     ),
     featureFlags: ff.flags,
-    prefetch,
     costTracking,
     warnings: ff.warnings,
   };

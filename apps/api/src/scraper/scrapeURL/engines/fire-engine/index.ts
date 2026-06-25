@@ -23,13 +23,12 @@ import {
   ProxySelectionError,
 } from "../../error";
 import * as Sentry from "@sentry/node";
-import { specialtyScrapeCheck } from "../utils/specialtyHandler";
 import { fireEngineDelete } from "./delete";
 import { getInnerJson } from "@mendable/firecrawl-rs";
 import { hasFormatOfType } from "../../../../lib/format-utils";
 import { InternalAction } from "../../../../controllers/v1/types";
 import { AbortManagerThrownError } from "../../lib/abortManager";
-import { youtubePostprocessor } from "../../postprocessors/youtube";
+import { shouldRunYoutubeTransformer } from "../../transformers/youtube";
 import { withSpan, setSpanAttributes } from "../../../../lib/otel-tracer";
 import { getBrandingScript } from "./brandingScript";
 import { abTestFireEngine } from "../../../../services/ab-test";
@@ -37,6 +36,7 @@ import { scheduleABComparison } from "../../../../services/ab-test-comparison";
 import { createHash } from "node:crypto";
 import { Meta } from "../../lib/meta";
 import { Engine, EngineScrapeResult } from "../types";
+import { attachEngineResultFile } from "../../lib/engine-result-file";
 
 /** Default wait (ms) before running the branding script when user did not set waitFor. Lets the page settle so DOM/images are ready and reduces JS errors. */
 const BRANDING_DEFAULT_WAIT_MS = 2000;
@@ -183,14 +183,6 @@ async function performFireEngineScrape<
       status = scrape as FireEngineCheckStatusSuccess;
     }
 
-    await specialtyScrapeCheck(
-      logger.child({
-        method: "performFireEngineScrape/specialtyScrapeCheck",
-      }),
-      status.responseHeaders,
-      status,
-    );
-
     const contentType =
       (Object.entries(status.responseHeaders ?? {}).find(
         x => x[0].toLowerCase() === "content-type",
@@ -201,9 +193,7 @@ async function performFireEngineScrape<
     }
 
     if (status.file) {
-      const content = status.file.content;
-      delete status.file;
-      status.content = Buffer.from(content, "base64").toString("utf8"); // TODO: handle other encodings via Content-Type tag
+      status.content = status.file.content;
     }
 
     fireEngineDelete(
@@ -246,7 +236,7 @@ async function performFireEngineScrape<
   });
 }
 
-export async function scrapeURLWithFireEngineChromeCDP(
+async function scrapeURLWithFireEngineChromeCDP(
   meta: Meta,
 ): Promise<EngineScrapeResult> {
   return withSpan("engine.fire-engine.chrome-cdp", async span => {
@@ -258,7 +248,7 @@ export async function scrapeURLWithFireEngineChromeCDP(
     const hasBranding = hasFormatOfType(meta.options.formats, "branding");
     const hasAudio = hasFormatOfType(meta.options.formats, "audio");
     const hasVideo = hasFormatOfType(meta.options.formats, "video");
-    const shouldRunYoutubePostprocessor = youtubePostprocessor.shouldRun(
+    const shouldRunYoutubePostprocessor = shouldRunYoutubeTransformer(
       meta,
       new URL(meta.rewrittenUrl ?? meta.url),
     );
@@ -427,7 +417,7 @@ export async function scrapeURLWithFireEngineChromeCDP(
       .filter(x => x.type === "getCookies")
       .flatMap(x => x.result.cookies);
 
-    return {
+    const result: EngineScrapeResult = {
       url: response.url ?? meta.url,
 
       html: response.content,
@@ -460,10 +450,12 @@ export async function scrapeURLWithFireEngineChromeCDP(
         ? { audioCookies }
         : {}),
     };
+
+    return attachEngineResultFile(result, response.file);
   });
 }
 
-export async function scrapeURLWithFireEngineTLSClient(
+async function scrapeURLWithFireEngineTLSClient(
   meta: Meta,
 ): Promise<EngineScrapeResult> {
   return withSpan("engine.fire-engine.tlsclient", async span => {
@@ -511,7 +503,7 @@ export async function scrapeURLWithFireEngineTLSClient(
       });
     }
 
-    return {
+    const result: EngineScrapeResult = {
       url: response.url ?? meta.url,
 
       html: response.content,
@@ -526,6 +518,8 @@ export async function scrapeURLWithFireEngineTLSClient(
       proxyUsed: response.usedMobileProxy ? "stealth" : "basic",
       timezone: response.timezone,
     };
+
+    return attachEngineResultFile(result, response.file);
   });
 }
 

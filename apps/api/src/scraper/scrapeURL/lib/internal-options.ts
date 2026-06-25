@@ -7,6 +7,7 @@ export type InternalOptions = {
   crawlId?: string;
 
   priority?: number; // Passed along to fire-engine
+  forceEngine?: unknown; // Compatibility shim for old internal callers; ignored by scrapeURL.
   atsv?: boolean; // anti-bot solver, beta
 
   v0CrawlOnlyUrls?: boolean;

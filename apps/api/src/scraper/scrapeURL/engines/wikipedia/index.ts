@@ -226,9 +226,7 @@ interface WikimediaArticle {
   };
 }
 
-export async function scrapeURLWithWikipedia(
-  meta: Meta,
-): Promise<EngineScrapeResult> {
+async function scrapeURLWithWikipedia(meta: Meta): Promise<EngineScrapeResult> {
   const urlToScrape = meta.rewrittenUrl ?? meta.url;
   const wikiInfo = parseWikimediaUrl(urlToScrape);
 
@@ -395,6 +393,6 @@ export const wikipediaSpecialEngine: SpecialEngine = {
     });
   },
   special: {
-    regex: /hi/, // TODO:
+    matches: isWikimediaUrl,
   },
 };

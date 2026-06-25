@@ -1,6 +1,5 @@
 import * as undici from "undici";
-import { SSLError } from "../../error";
-import { specialtyScrapeCheck } from "../utils/specialtyHandler";
+import { SSLError, UnsupportedFileError } from "../../error";
 import {
   getSecureDispatcher,
   InsecureConnectionError,
@@ -8,6 +7,14 @@ import {
 import { TextDecoder } from "util";
 import { Meta } from "../../lib/meta";
 import { Engine, EngineScrapeResult } from "../types";
+import { attachEngineResultFile } from "../../lib/engine-result-file";
+import {
+  isDocumentContentType,
+  isPdfContentType,
+  isProbablyDocumentBase64,
+  isProbablyPdfBase64,
+  isUnsupportedBinaryContentType,
+} from "../../lib/file-format-check";
 
 function decodeHtmlBuffer(
   buf: Buffer,
@@ -82,9 +89,7 @@ function decodeHtmlBuffer(
   return { text };
 }
 
-export async function scrapeURLWithFetch(
-  meta: Meta,
-): Promise<EngineScrapeResult> {
+async function scrapeURLWithFetch(meta: Meta): Promise<EngineScrapeResult> {
   let response: {
     url: string;
     body: string;
@@ -102,6 +107,37 @@ export async function scrapeURLWithFetch(
 
     const buf = Buffer.from(await x.arrayBuffer());
     const contentType = x.headers.get("content-type") ?? undefined;
+    const base64 = buf.toString("base64");
+    const shouldKeepAsBase64 =
+      isPdfContentType(contentType) ||
+      isDocumentContentType(contentType) ||
+      isProbablyPdfBase64(base64) ||
+      isProbablyDocumentBase64(base64);
+
+    if (!shouldKeepAsBase64 && isUnsupportedBinaryContentType(contentType)) {
+      throw new UnsupportedFileError(contentType ?? "unknown");
+    }
+
+    if (shouldKeepAsBase64) {
+      response = {
+        url: x.url,
+        body: base64,
+        status: x.status,
+        headers: [...x.headers],
+      };
+      const result: EngineScrapeResult = {
+        url: response.url,
+        html: response.body,
+        statusCode: response.status,
+        contentType:
+          (response.headers.find(x => x[0].toLowerCase() === "content-type") ??
+            [])[1] ?? undefined,
+        proxyUsed: "basic",
+      };
+
+      return attachEngineResultFile(result, { content: response.body });
+    }
+
     const { text, charset, charsetSource, decodeError } = decodeHtmlBuffer(
       buf,
       contentType,
@@ -145,11 +181,6 @@ export async function scrapeURLWithFetch(
       throw error;
     }
   }
-
-  await specialtyScrapeCheck(
-    meta.logger.child({ method: "scrapeURLWithFetch/specialtyScrapeCheck" }),
-    Object.fromEntries(response.headers as any),
-  );
 
   return {
     url: response.url,
