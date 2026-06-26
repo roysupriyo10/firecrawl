@@ -595,6 +595,7 @@ export async function buildFallbackList(meta: Meta): Promise<
       zeroDataRetention: meta.internalOptions.zeroDataRetention,
       lockdown: meta.options.lockdown,
       flags: meta.internalOptions.teamFlags ?? null,
+      teamId: meta.internalOptions.teamId ?? null,
     }))
   ) {
     return [

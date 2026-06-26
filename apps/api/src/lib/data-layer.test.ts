@@ -5,13 +5,16 @@ import { config } from "../config";
 import {
   canUseDataLayerForRequest,
   clearDataLayerCapabilitiesForTest,
+  getDataLayerAccessForRequest,
   getDataLayerRequestLogContext,
   getDataLayerResponseLogContext,
   getDataLayerSuccessCredits,
+  getThirdPartyDataTermsRequiredResponse,
   isDataLayerSupportedUrl,
   isSuccessfulDataLayerStatusCode,
   isSupportedDataLayerFormatRequest,
   setDataLayerCapabilitiesForTest,
+  setThirdPartyDataTermsAcceptedForTest,
 } from "./data-layer";
 
 vi.mock("undici", () => ({
@@ -21,6 +24,7 @@ vi.mock("undici", () => ({
 const originalConfig = {
   FIRE_ENGINE_BETA_URL: config.FIRE_ENGINE_BETA_URL,
 };
+const TEST_TEAM_ID = "00000000-0000-4000-8000-000000000001";
 
 describe("data layer routing", () => {
   beforeEach(() => {
@@ -30,6 +34,7 @@ describe("data layer routing", () => {
       domains: ["profiles.example"],
       baseDomains: ["network.example"],
     });
+    setThirdPartyDataTermsAcceptedForTest(TEST_TEAM_ID, true);
   });
 
   afterEach(() => {
@@ -124,6 +129,7 @@ describe("data layer routing", () => {
         url: "https://profiles.example/person/example-person",
         formats: [{ type: "markdown" }],
         flags: { enrichBeta: true },
+        teamId: TEST_TEAM_ID,
       }),
     ).resolves.toBe(true);
 
@@ -133,6 +139,7 @@ describe("data layer routing", () => {
         formats: [{ type: "json" }],
         actions: [{ type: "wait" }],
         flags: { enrichBeta: true },
+        teamId: TEST_TEAM_ID,
       }),
     ).resolves.toBe(false);
 
@@ -141,6 +148,47 @@ describe("data layer routing", () => {
         url: "https://profiles.example/person/example-person",
         formats: [{ type: "json" }],
         zeroDataRetention: true,
+        flags: { enrichBeta: true },
+        teamId: TEST_TEAM_ID,
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("requires current Third-Party Data terms before routing", async () => {
+    setThirdPartyDataTermsAcceptedForTest(TEST_TEAM_ID, false);
+
+    await expect(
+      getDataLayerAccessForRequest({
+        url: "https://profiles.example/person/example-person",
+        formats: [{ type: "markdown" }],
+        flags: { enrichBeta: true },
+        teamId: TEST_TEAM_ID,
+      }),
+    ).resolves.toEqual({ allowed: false, termsRequired: true });
+
+    expect(getThirdPartyDataTermsRequiredResponse()).toMatchObject({
+      success: false,
+      code: "THIRD_PARTY_DATA_TERMS_REQUIRED",
+      requiresAction: {
+        type: "accept_terms",
+        terms: "third_party_data",
+        version: "2026-06-26",
+      },
+    });
+
+    await expect(
+      canUseDataLayerForRequest({
+        url: "https://profiles.example/person/example-person",
+        formats: [{ type: "markdown" }],
+        flags: { enrichBeta: true },
+        teamId: TEST_TEAM_ID,
+      }),
+    ).resolves.toBe(false);
+
+    await expect(
+      canUseDataLayerForRequest({
+        url: "https://profiles.example/person/example-person",
+        formats: [{ type: "markdown" }],
         flags: { enrichBeta: true },
       }),
     ).resolves.toBe(false);
@@ -151,6 +199,7 @@ describe("data layer routing", () => {
       canUseDataLayerForRequest({
         url: "https://profiles.example/person/example-person",
         formats: [{ type: "markdown" }],
+        teamId: TEST_TEAM_ID,
       }),
     ).resolves.toBe(false);
 
@@ -159,6 +208,7 @@ describe("data layer routing", () => {
         url: "https://profiles.example/person/example-person",
         formats: [{ type: "markdown" }],
         flags: { enrichBeta: false },
+        teamId: TEST_TEAM_ID,
       }),
     ).resolves.toBe(false);
   });
@@ -171,6 +221,7 @@ describe("data layer routing", () => {
         url: "https://profiles.example/person/example-person",
         formats: [{ type: "markdown" }],
         flags: { enrichBeta: true },
+        teamId: TEST_TEAM_ID,
       }),
     ).resolves.toBe(false);
   });

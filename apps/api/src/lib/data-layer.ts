@@ -1,8 +1,12 @@
 import { fetch } from "undici";
+import { eq, sql } from "drizzle-orm";
+import { validate as isUuid } from "uuid";
 import { z } from "zod";
 
 import { config } from "../config";
 import type { FormatObject } from "../controllers/v2/types";
+import { dbRr } from "../db/connection";
+import * as schema from "../db/schema";
 import { logger as rootLogger } from "./logger";
 
 type RouteInput = {
@@ -18,6 +22,7 @@ type RouteInput = {
   zeroDataRetention?: boolean;
   lockdown?: boolean;
   flags?: { enrichBeta?: boolean } | null;
+  teamId?: string | null;
 };
 
 export type DataLayerScrapeMetadata = {
@@ -27,10 +32,18 @@ export type DataLayerScrapeMetadata = {
 
 const SUPPORTED_FORMATS = new Set(["markdown", "json", "deterministicJson"]);
 const DATA_LAYER_SUCCESS_CREDITS = 15;
+export const THIRD_PARTY_DATA_TERMS_SOURCE_ID = "third_party_data";
+export const THIRD_PARTY_DATA_TERMS_VERSION = "2026-06-26";
+export const THIRD_PARTY_DATA_TERMS_REQUIRED_CODE =
+  "THIRD_PARTY_DATA_TERMS_REQUIRED";
+export const THIRD_PARTY_DATA_TERMS_REQUIRED_MESSAGE =
+  "A team admin must accept the Third-Party Data terms before this URL can be processed.";
 
 const DATA_LAYER_CAPABILITIES_PATH = "/v1/data-layer/capabilities";
 const DATA_LAYER_CAPABILITIES_TIMEOUT_MS = 2_000;
 const DATA_LAYER_CAPABILITIES_FALLBACK_TTL_MS = 30_000;
+const THIRD_PARTY_DATA_TERMS_CACHE_TTL_MS = 60_000;
+const THIRD_PARTY_DATA_TERMS_ERROR_CACHE_TTL_MS = 10_000;
 
 const dataLayerCapabilitiesSchema = z
   .object({
@@ -54,6 +67,14 @@ let cachedCapabilities:
     }
   | undefined;
 let capabilitiesRequest: Promise<DataLayerCapabilities | null> | undefined;
+let cachedTermsAcceptance = new Map<
+  string,
+  {
+    expiresAt: number;
+    accepted: boolean;
+  }
+>();
+let termsAcceptanceForTest: Map<string, boolean> | undefined;
 
 function normalizeHost(host: string): string {
   return host.trim().toLowerCase().replace(/\.$/, "");
@@ -245,9 +266,76 @@ export function isSupportedDataLayerFormatRequest(
   });
 }
 
-export async function canUseDataLayerForRequest(
-  input: RouteInput,
+function isCurrentThirdPartyDataTermsAccepted(input: unknown): boolean {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return false;
+  }
+
+  const record = input as Record<string, unknown>;
+  const entry = record[THIRD_PARTY_DATA_TERMS_SOURCE_ID];
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    return false;
+  }
+
+  return (
+    (entry as Record<string, unknown>).version ===
+    THIRD_PARTY_DATA_TERMS_VERSION
+  );
+}
+
+async function hasAcceptedThirdPartyDataTerms(
+  teamId?: string | null,
 ): Promise<boolean> {
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    return true;
+  }
+
+  if (!teamId || !isUuid(teamId)) {
+    return false;
+  }
+
+  const testValue = termsAcceptanceForTest?.get(teamId);
+  if (testValue !== undefined) {
+    return testValue;
+  }
+
+  const cached = cachedTermsAcceptance.get(teamId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.accepted;
+  }
+
+  try {
+    const [team] = await dbRr
+      .select({
+        data_source_terms: sql<unknown>`data_source_terms`,
+      })
+      .from(schema.teams)
+      .where(eq(schema.teams.id, teamId))
+      .limit(1);
+    const accepted = isCurrentThirdPartyDataTermsAccepted(
+      team?.data_source_terms,
+    );
+
+    cachedTermsAcceptance.set(teamId, {
+      accepted,
+      expiresAt: Date.now() + THIRD_PARTY_DATA_TERMS_CACHE_TTL_MS,
+    });
+
+    return accepted;
+  } catch (error) {
+    rootLogger.warn("Third-Party Data terms lookup failed", {
+      error,
+      teamId,
+    });
+    cachedTermsAcceptance.set(teamId, {
+      accepted: false,
+      expiresAt: Date.now() + THIRD_PARTY_DATA_TERMS_ERROR_CACHE_TTL_MS,
+    });
+    return false;
+  }
+}
+
+function isDataLayerEligibleRequest(input: RouteInput): boolean {
   if (input.flags?.enrichBeta !== true) {
     return false;
   }
@@ -288,7 +376,57 @@ export async function canUseDataLayerForRequest(
     return false;
   }
 
-  return isDataLayerSupportedUrl(input.url);
+  return true;
+}
+
+export async function getDataLayerAccessForRequest(input: RouteInput): Promise<
+  | {
+      allowed: true;
+      termsRequired: false;
+    }
+  | {
+      allowed: false;
+      termsRequired: boolean;
+    }
+> {
+  if (!isDataLayerEligibleRequest(input)) {
+    return { allowed: false, termsRequired: false };
+  }
+
+  const supported = await isDataLayerSupportedUrl(input.url);
+  if (!supported) {
+    return { allowed: false, termsRequired: false };
+  }
+
+  if (!(await hasAcceptedThirdPartyDataTerms(input.teamId))) {
+    return { allowed: false, termsRequired: true };
+  }
+
+  return { allowed: true, termsRequired: false };
+}
+
+export async function canUseDataLayerForRequest(
+  input: RouteInput,
+): Promise<boolean> {
+  return (await getDataLayerAccessForRequest(input)).allowed;
+}
+
+export function getThirdPartyDataTermsSettingsUrl(): string {
+  return `${config.FIRECRAWL_DASHBOARD_URL.replace(/\/+$/, "")}/app/settings?tab=data-sources`;
+}
+
+export function getThirdPartyDataTermsRequiredResponse() {
+  return {
+    success: false,
+    code: THIRD_PARTY_DATA_TERMS_REQUIRED_CODE,
+    error: THIRD_PARTY_DATA_TERMS_REQUIRED_MESSAGE,
+    requiresAction: {
+      type: "accept_terms",
+      terms: THIRD_PARTY_DATA_TERMS_SOURCE_ID,
+      version: THIRD_PARTY_DATA_TERMS_VERSION,
+      url: getThirdPartyDataTermsSettingsUrl(),
+    },
+  };
 }
 
 export function getDataLayerSuccessCredits(input: {
@@ -322,7 +460,17 @@ export function setDataLayerCapabilitiesForTest(input: {
   };
 }
 
+export function setThirdPartyDataTermsAcceptedForTest(
+  teamId: string,
+  accepted: boolean,
+) {
+  termsAcceptanceForTest ??= new Map();
+  termsAcceptanceForTest.set(teamId, accepted);
+}
+
 export function clearDataLayerCapabilitiesForTest() {
   cachedCapabilities = undefined;
   capabilitiesRequest = undefined;
+  cachedTermsAcceptance.clear();
+  termsAcceptanceForTest = undefined;
 }
