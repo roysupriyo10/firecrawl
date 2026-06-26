@@ -226,7 +226,7 @@ async function performFireEngineScrape<
           if (error instanceof RangeError) {
             throw new UnsupportedFileError("File exceeds size limit");
           }
-          logger.warn("Failed to gunzip fire-engine file content", { error });
+          throw new UnsupportedFileError("Failed to decompress gzip content");
         }
       }
       status.content = buffer.toString("utf8"); // TODO: handle other encodings via Content-Type tag
