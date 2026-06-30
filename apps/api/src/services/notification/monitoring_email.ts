@@ -187,7 +187,9 @@ function pageStatusLabel(status: string, isSearch: boolean): string {
 }
 
 export function buildHtml(payload: MonitoringEmailPayload): string {
-  const sortedPages = [...payload.pages].sort((a, b) => {
+  const sortedPages = payload.pages.filter(page => page.status !== "error");
+
+  sortedPages.sort((a, b) => {
     const aMeaningful = a.judgment?.meaningful === true ? 0 : 1;
     const bMeaningful = b.judgment?.meaningful === true ? 0 : 1;
     return aMeaningful - bMeaningful;
@@ -242,25 +244,15 @@ export function buildHtml(payload: MonitoringEmailPayload): string {
         ? "found a new match"
         : `found ${payload.summary.new} new matches`;
   } else {
-    // A search email with no new matches only fires because of scrape errors, so
-    // lead with those instead of the misleading "found 0 new matches".
-    activityLine =
-      payload.summary.error === 1
-        ? "ran into an error while checking results"
-        : `ran into ${payload.summary.error} errors while checking results`;
+    activityLine = "detected activity";
   }
   const summaryItems = payload.isSearch
     ? `  <li>Matches: ${payload.summary.new}</li>
   <li>Already seen: ${payload.summary.same}</li>
-  <li>Checked: ${payload.summary.totalPages}</li>${
-    payload.summary.error > 0
-      ? `\n  <li>Errors: ${payload.summary.error}</li>`
-      : ""
-  }`
+  <li>Checked: ${payload.summary.totalPages}</li>`
     : `  <li>${changedLine}</li>
   <li>New: ${payload.summary.new}</li>
   <li>Removed: ${payload.summary.removed}</li>
-  <li>Errors: ${payload.summary.error}</li>
   <li>Total pages checked: ${payload.summary.totalPages}</li>`;
 
   return `Hey there,<br/>
@@ -518,8 +510,7 @@ export async function sendMonitoringEmailSummary(params: {
   if (
     params.check.changed_count +
       params.check.new_count +
-      params.check.removed_count +
-      params.check.error_count <=
+      params.check.removed_count <=
     0
   ) {
     logger.info("Skipping monitoring email summary; no changes detected", {

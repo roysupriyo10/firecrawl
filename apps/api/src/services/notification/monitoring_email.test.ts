@@ -212,7 +212,7 @@ describe("monitoring email URLs", () => {
     expect(html).not.toContain("Errors:");
   });
 
-  it("uses singular match phrasing and shows errors only when present (search)", () => {
+  it("uses singular match phrasing and hides page errors (search)", () => {
     const html = buildHtml({
       monitorId: "m1",
       monitorName: "AI news",
@@ -226,15 +226,20 @@ describe("monitoring email URLs", () => {
         error: 1,
         totalPages: 8,
       },
-      pages: [{ url: "https://example.com", status: "new" }],
+      pages: [
+        { url: "https://example.com/new", status: "new" },
+        { url: "https://example.com/failed", status: "error" },
+      ],
       creditsUsed: 1,
       isSearch: true,
     });
     expect(html).toContain("found a new match");
-    expect(html).toContain("Errors: 1");
+    expect(html).not.toContain("Errors:");
+    expect(html).toContain("https://example.com/new");
+    expect(html).not.toContain("https://example.com/failed");
   });
 
-  it("leads with errors (not '0 new matches') for an error-only search check", () => {
+  it("does not render error details for an error-only search check", () => {
     const html = buildHtml({
       monitorId: "m1",
       monitorName: "AI news",
@@ -252,13 +257,14 @@ describe("monitoring email URLs", () => {
       creditsUsed: 1,
       isSearch: true,
     });
-    expect(html).toContain("ran into 2 errors while checking results");
+    expect(html).not.toContain("ran into");
     expect(html).not.toContain("0 new matches");
-    // errors still appear in the breakdown
-    expect(html).toContain("Errors: 2");
+    expect(html).not.toContain("Errors:");
+    expect(html).not.toContain("Top pages:");
+    expect(html).not.toContain("https://example.com");
   });
 
-  it("uses singular error phrasing for a single error-only search check", () => {
+  it("does not render singular error details for an error-only search check", () => {
     const html = buildHtml({
       monitorId: "m1",
       monitorName: "AI news",
@@ -276,8 +282,11 @@ describe("monitoring email URLs", () => {
       creditsUsed: 1,
       isSearch: true,
     });
-    expect(html).toContain("ran into an error while checking results");
+    expect(html).not.toContain("ran into");
     expect(html).not.toContain("new match");
+    expect(html).not.toContain("Errors:");
+    expect(html).not.toContain("Top pages:");
+    expect(html).not.toContain("https://example.com");
   });
 });
 
@@ -397,6 +406,27 @@ describe("sendMonitoringEmailSummary", () => {
       buildArgs({
         emailEnabled: true,
         status: "failed",
+        pages: [{ status: "error" }],
+      }),
+    );
+
+    expect(result).toEqual({
+      attempted: false,
+      success: true,
+      recipients: [],
+    });
+    expect(mockListRecipients).not.toHaveBeenCalled();
+    expect(mockResendSend).not.toHaveBeenCalled();
+  });
+
+  it("does not send email summaries for error-only checks", async () => {
+    mockListRecipients.mockResolvedValue([
+      fakeRecipient("a@b.com", "confirmed"),
+    ]);
+
+    const result = await sendMonitoringEmailSummary(
+      buildArgs({
+        emailEnabled: true,
         pages: [{ status: "error" }],
       }),
     );
