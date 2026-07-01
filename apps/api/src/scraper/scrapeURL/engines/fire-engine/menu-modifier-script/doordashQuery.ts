@@ -1,3 +1,19 @@
+// Mutation that sets the session's delivery area on the second supported platform. Store pages there
+// return no item options until a delivery area is resolved; a scrape session has none. We resolve the
+// store's own address (from its JSON-LD) to a place via the geo autocomplete endpoint and set it here,
+// which lets the per-item option requests succeed in the same session (no reload). Minimal selection
+// set on purpose. Only the required (non-null) variables are sent.
+export const SET_LOCATION_MUTATION = `mutation addConsumerAddressV2($lat: Float!, $lng: Float!, $city: String!, $state: String!, $zipCode: String!, $printableAddress: String!, $shortname: String!, $googlePlaceId: String!) {
+  addConsumerAddressV2(lat: $lat, lng: $lng, city: $city, state: $state, zipCode: $zipCode, printableAddress: $printableAddress, shortname: $shortname, googlePlaceId: $googlePlaceId) {
+    defaultAddress {
+      id
+      districtId
+      __typename
+    }
+    __typename
+  }
+}`;
+
 // GraphQL query for a single item's customization/option groups on the second supported platform.
 // This is a trimmed version of the document the store page itself sends to its per-item endpoint:
 // only the item header and the option groups (with up to two levels of nested options) are kept,

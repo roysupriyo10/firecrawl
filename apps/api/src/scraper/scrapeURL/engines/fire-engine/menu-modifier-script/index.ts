@@ -13,7 +13,7 @@
 // payload into option groups keyed by merchant item id. Best-effort: any failure yields an empty
 // `items` map rather than throwing. Unsupported hosts (or pages where item context is not derivable
 // in-page) fall closed with no items.
-import { ITEM_OPTIONS_QUERY } from "./doordashQuery";
+import { ITEM_OPTIONS_QUERY, SET_LOCATION_MUTATION } from "./doordashQuery";
 
 const MAX_ITEMS = 150;
 const CONCURRENCY = 8;
@@ -179,8 +179,8 @@ async function captureDoorDash(): Promise<CaptureResult> {
     }
     if (itemIds.length === 0) return out;
 
-    // 3. One direct POST per item to the per-item endpoint. It accepts the query inline and needs
-    //    only the page's cookies (credentials: include) plus the constant client headers below.
+    // The per-item and location endpoints need only the page's cookies (credentials: include) plus
+    // these constant client headers.
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "apollographql-client-name":
@@ -190,6 +190,14 @@ async function captureDoorDash(): Promise<CaptureResult> {
       "x-channel-id": "marketplace",
       accept: "*/*",
     };
+
+    // 3. Resolve a delivery area for the session. The per-item endpoint returns no options until one
+    //    is set, and a scrape session has none. Best-effort and idempotent: resolve the store's own
+    //    address to a place and set it; on any failure we still attempt the item fetches below.
+    await ensureDoorDashLocation(headers);
+
+    // 4. One direct POST per item to the per-item endpoint. It accepts the query inline and needs
+    //    only the page's cookies (credentials: include) plus the constant client headers below.
     const buildBody = (itemId: string): string =>
       JSON.stringify({
         operationName: "itemPage",
@@ -223,4 +231,99 @@ async function captureDoorDash(): Promise<CaptureResult> {
     out.value.error = String((e as Error)?.message ?? e);
   }
   return out;
+}
+
+interface AutocompletePrediction {
+  lat?: number;
+  lng?: number;
+  formatted_address?: string;
+  formatted_address_short?: string;
+  street_address?: string;
+  locality?: string;
+  administrative_area_level1?: string;
+  postal_code?: string;
+  source_place_id?: string;
+}
+
+// Best-effort: resolve a delivery area for the session so the per-item endpoint returns options.
+// Reads the store's own postal address from the page's JSON-LD, resolves it to a place via the
+// same-origin geo autocomplete endpoint, and sets it as the session address. All same-origin fetches
+// (cookies only). Any failure is swallowed -- the caller still attempts the item fetches.
+async function ensureDoorDashLocation(
+  headers: Record<string, string>,
+): Promise<void> {
+  try {
+    let address:
+      | {
+          streetAddress?: string;
+          addressLocality?: string;
+          addressRegion?: string;
+        }
+      | undefined;
+    const scripts = document.querySelectorAll(
+      'script[type="application/ld+json"]',
+    );
+    for (const script of Array.from(scripts)) {
+      try {
+        const parsed = JSON.parse(script.textContent || "{}");
+        for (const node of ([] as unknown[]).concat(parsed)) {
+          const a = (node as { address?: typeof address })?.address;
+          if (a && (a.streetAddress || a.addressLocality)) {
+            address = a;
+            break;
+          }
+        }
+      } catch {
+        /* ignore malformed JSON-LD */
+      }
+      if (address) break;
+    }
+    if (!address) return;
+
+    const query = [
+      address.streetAddress,
+      address.addressLocality,
+      address.addressRegion,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    if (!query) return;
+
+    const acResp = await fetch(
+      "/unified-gateway/geo-intelligence/v2/address/autocomplete?input_address=" +
+        encodeURIComponent(query),
+      { headers, credentials: "include" },
+    );
+    if (!acResp.ok) return;
+    const ac = (await acResp.json()) as {
+      predictions?: AutocompletePrediction[];
+    };
+    const p = ac?.predictions?.[0];
+    if (!p || typeof p.lat !== "number" || !p.source_place_id) return;
+
+    await fetch(
+      "/graphql/addConsumerAddressV2?operation=addConsumerAddressV2",
+      {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({
+          operationName: "addConsumerAddressV2",
+          variables: {
+            lat: p.lat,
+            lng: p.lng,
+            city: p.locality || "",
+            state: p.administrative_area_level1 || "",
+            zipCode: p.postal_code || "",
+            printableAddress: p.formatted_address || query,
+            shortname: p.formatted_address_short || p.street_address || "",
+            googlePlaceId: p.source_place_id,
+          },
+          query: SET_LOCATION_MUTATION,
+        }),
+      },
+    );
+  } catch {
+    /* best-effort: fall through to the item fetches */
+  }
 }
