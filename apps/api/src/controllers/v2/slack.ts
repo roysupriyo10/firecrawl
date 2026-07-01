@@ -86,19 +86,34 @@ export async function slackOAuthCallbackController(req: Request, res: Response) 
     );
   }
 
-  const result = await handleOAuthCallback({ code, state });
-  if (!result.ok) {
+  // This handler lands in the user's browser, so it must never surface a 500 via
+  // wrap() — any failure (Redis in consumeState, network in the token exchange,
+  // etc.) should bounce them back to the dashboard with an error.
+  try {
+    const result = await handleOAuthCallback({ code, state });
+    if (!result.ok) {
+      return res.redirect(
+        dashboardRedirect(result.redirectPath, {
+          slack: "error",
+          reason: result.error,
+        }),
+      );
+    }
+
     return res.redirect(
-      dashboardRedirect(result.redirectPath, {
+      dashboardRedirect(result.redirectPath, { slack: "connected" }),
+    );
+  } catch (error) {
+    // redirectPath from the OAuth state isn't recoverable here, so fall back to
+    // the monitoring root.
+    logger.error("Slack OAuth callback failed", { error });
+    return res.redirect(
+      dashboardRedirect("/app/monitoring", {
         slack: "error",
-        reason: result.error,
+        reason: "callback_failed",
       }),
     );
   }
-
-  return res.redirect(
-    dashboardRedirect(result.redirectPath, { slack: "connected" }),
-  );
 }
 
 // GET /v2/slack/status (auth) — connection status for the team.
