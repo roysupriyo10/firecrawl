@@ -66,6 +66,13 @@ export async function crawlController(
     const seedDomain = normalizeDomain(req.body.url);
     const decision = await checkDomain(seedDomain, threatProtection.policy, {
       teamId: req.auth.team_id,
+      orgId: threatProtection.orgConfig?.orgId,
+      endpoint: "crawl",
+      url: req.body.url,
+      origin: req.body.origin,
+      zeroDataRetention:
+        getScrapeZDR(req.acuc?.flags) === "forced" ||
+        req.body.zeroDataRetention,
     });
     if (!decision.allowed) {
       const error = new UnsafeDomainBlockedError(seedDomain, decision);

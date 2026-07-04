@@ -124,7 +124,14 @@ export async function executeSearch(
       const { decisionsByDomain } = await checkUrlsAgainstThreatPolicy(
         urlsToCheck,
         threatPolicy,
-        { teamId },
+        {
+          teamId,
+          requestId,
+          jobId: context.jobId,
+          endpoint: "search",
+          origin,
+          zeroDataRetention,
+        },
       );
       const isAllowed = (url: string | undefined | null): boolean => {
         if (!url) return true;

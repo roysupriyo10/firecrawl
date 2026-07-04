@@ -99,7 +99,13 @@ export async function extractController(
     const { blocked } = await checkUrlsAgainstThreatPolicy(
       req.body.urls ?? [],
       threatProtection.policy,
-      { teamId: req.auth.team_id },
+      {
+        teamId: req.auth.team_id,
+        orgId: threatProtection.orgConfig?.orgId,
+        jobId: extractId,
+        endpoint: "extract",
+        origin: req.body.origin,
+      },
     );
     if (blocked.length > 0) {
       if (req.body.ignoreInvalidURLs) {
