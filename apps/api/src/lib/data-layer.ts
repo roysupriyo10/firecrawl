@@ -20,7 +20,7 @@ type RouteInput = {
   blockAds?: boolean;
   zeroDataRetention?: boolean;
   lockdown?: boolean;
-  flags?: { enrichBeta?: boolean } | null;
+  flags?: { professionalProfileCompanyDataBeta?: boolean } | null;
   teamId?: string | null;
 };
 
@@ -33,11 +33,13 @@ const SUPPORTED_FORMATS = new Set(["markdown", "json", "deterministicJson"]);
 const DATA_LAYER_SUCCESS_CREDITS = 15;
 export const PROFESSIONAL_PROFILE_COMPANY_DATA_TERMS_SOURCE_ID =
   "professional_profile_company_data";
+export const PROFESSIONAL_PROFILE_COMPANY_DATA_BETA_FLAG =
+  "professionalProfileCompanyDataBeta";
 export const THIRD_PARTY_DATA_TERMS_VERSION = "2026-07-03";
 export const THIRD_PARTY_DATA_TERMS_REQUIRED_CODE =
   "THIRD_PARTY_DATA_TERMS_REQUIRED";
 export const THIRD_PARTY_DATA_TERMS_REQUIRED_MESSAGE =
-  "A team admin must accept the Third-Party Data terms before this URL can be processed.";
+  "An organization admin must accept the Professional Profile & Company Data terms before this URL can be processed.";
 
 const DATA_LAYER_CAPABILITIES_PATH = "/v1/data-layer/capabilities";
 const DATA_LAYER_CAPABILITIES_TIMEOUT_MS = 2_000;
@@ -321,7 +323,7 @@ async function hasAcceptedThirdPartyDataTerms(
 }
 
 function isDataLayerEligibleRequest(input: RouteInput): boolean {
-  if (input.flags?.enrichBeta !== true) {
+  if (input.flags?.[PROFESSIONAL_PROFILE_COMPANY_DATA_BETA_FLAG] !== true) {
     return false;
   }
 

@@ -1323,6 +1323,7 @@ export type TeamFlags = {
   researchBeta?: boolean;
   highlightsBeta?: boolean;
   enrichBeta?: boolean;
+  professionalProfileCompanyDataBeta?: boolean;
   // routes the team's new queue work to the FoundationDB backend
   nuqFdb?: boolean;
 } | null;
