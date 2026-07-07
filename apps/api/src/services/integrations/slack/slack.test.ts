@@ -164,14 +164,29 @@ describe("slack message builder", () => {
     expect(text).toContain("Monitor Pricing <watch>");
     expect(text).toContain("check c1");
 
+    const typedBlocks = blocks as Array<Record<string, any>>;
     const serialized = JSON.stringify(blocks);
 
     // Header includes "Monitor" and the check ID.
     expect(serialized).toContain("Monitor Pricing");
     expect(serialized).toContain("Check c1");
 
-    // Goal appears in italics (mrkdwn with _..._ wrapping).
-    expect(serialized).toContain("Alert when the pricing page changes.");
+    // Goal block: second block, is a section with italic-wrapped link to
+    // monitorUrl (not dashboardUrl) and the goal text as the label.
+    const goalBlock = typedBlocks[1];
+    expect(goalBlock.type).toBe("section");
+    expect(goalBlock.text?.type).toBe("mrkdwn");
+    const goalMrkdwn = goalBlock.text.text as string;
+    // Italics markers present.
+    expect(goalMrkdwn.startsWith("_")).toBe(true);
+    expect(goalMrkdwn.endsWith("_")).toBe(true);
+    // Links to monitorUrl specifically (not dashboardUrl with ?checkId=).
+    expect(goalMrkdwn).toContain(
+      "<https://www.firecrawl.dev/app/monitoring/m1|",
+    );
+    expect(goalMrkdwn).not.toContain("checkId=c1");
+    // Goal text is the link label (escaped by slackLink, not double-escaped).
+    expect(goalMrkdwn).toContain("Alert when the pricing page changes.");
 
     // URL appears before the description in the blocks order.
     const urlIdx = serialized.indexOf("example.com/pricing");
@@ -180,11 +195,16 @@ describe("slack message builder", () => {
     expect(descIdx).toBeGreaterThan(-1);
     expect(urlIdx).toBeLessThan(descIdx);
 
+    // Per-page section includes bolded status text.
+    const pageSection = typedBlocks.find(
+      b =>
+        b.type === "section" && b.text?.text?.includes("example.com/pricing"),
+    );
+    expect(pageSection).toBeDefined();
+    expect(pageSection!.text.text).toContain("*changed*");
+
     // Dashboard button present.
     expect(serialized).toContain("View in dashboard");
-    // Goal links to the monitor page.
-    expect(serialized).toContain("/app/monitoring/m1");
-    expect(serialized).toContain("Alert when the pricing page changes.");
 
     // Meaningful tag present.
     expect(serialized).toContain("meaningful");
@@ -214,6 +234,37 @@ describe("slack message builder", () => {
     const second = typedBlocks[1];
     expect(second.type).toBe("section");
     expect(second.text?.text).not.toContain("monitoring/m1|");
+  });
+
+  it("truncates long monitor goals to ≤ MAX_GOAL_LEN with ellipsis", () => {
+    const longGoal = "g".repeat(300);
+    const { blocks } = buildMonitorAlertMessage({
+      monitorName: "m",
+      monitorGoal: longGoal,
+      dashboardUrl: "https://www.firecrawl.dev/app/monitoring/m1?checkId=c1",
+      monitorUrl: "https://www.firecrawl.dev/app/monitoring/m1",
+      checkId: "c1",
+      summary: { changed: 1, new: 0, removed: 0, error: 0, totalPages: 1 },
+      pages: [
+        {
+          url: "https://example.com",
+          status: "changed",
+          judgment: { meaningful: true, reason: "r" },
+        },
+      ],
+      creditsUsed: 1,
+    });
+    const typedBlocks = blocks as Array<Record<string, any>>;
+    const goalBlock = typedBlocks[1];
+    expect(goalBlock.type).toBe("section");
+    const goalMrkdwn = goalBlock.text.text as string;
+    // The label inside <url|label> should be truncated to 200 chars (including
+    // the trailing ellipsis that truncate() adds).
+    const labelMatch = goalMrkdwn.match(/\|([^>]+)>/);
+    expect(labelMatch).toBeDefined();
+    const label = labelMatch![1];
+    expect(label.length).toBeLessThanOrEqual(200);
+    expect(label).toMatch(/…$/);
   });
 
   it("truncates long change descriptions to keep the alert compact", () => {

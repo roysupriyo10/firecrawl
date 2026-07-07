@@ -103,7 +103,7 @@ export function buildMonitorAlertMessage(payload: MonitorSlackPayload): {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `_${slackLink(payload.monitorUrl, truncate(escapeSlackText(goalText), MAX_GOAL_LEN))}_`,
+        text: `_${slackLink(payload.monitorUrl, truncate(goalText, MAX_GOAL_LEN))}_`,
       },
     });
   }
@@ -116,7 +116,7 @@ export function buildMonitorAlertMessage(payload: MonitorSlackPayload): {
         ? " · _meaningful_"
         : " · _noise_"
       : "";
-    const urlLine = `${statusEmoji(page.status)} ${boundedPageLink(page.url)}${tag}`;
+    const urlLine = `${statusEmoji(page.status)} *${escapeSlackText(page.status)}* · ${boundedPageLink(page.url)}${tag}`;
 
     // URL goes first as a section, description below as context.
     blocks.push({
@@ -201,7 +201,7 @@ export function buildMonitorAlertMessage(payload: MonitorSlackPayload): {
     shownPages.find(p => p.judgment?.meaningful && p.judgment.reason)?.judgment
       ?.reason ?? shownPages.find(p => p.judgment?.reason)?.judgment?.reason;
   const text = leadReason
-    ? `Monitor ${payload.monitorName} (check ${payload.checkId}): ${truncate(leadReason.trim(), 280)}`
+    ? `Monitor ${payload.monitorName} (check ${payload.checkId}): ${truncate(leadReason.trim(), MAX_DESCRIPTION_LEN)}`
     : `Monitor "${payload.monitorName}" (check ${payload.checkId}): ${summary.changed} changed, ${summary.new} new, ${summary.removed} removed, ${summary.error} errors.`;
 
   return { text, blocks };
