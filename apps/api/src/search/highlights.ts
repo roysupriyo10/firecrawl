@@ -49,13 +49,17 @@ const ERROR_COUNT_TO_REGISTER = 3;
 /**
  * Fetch the most recent indexed markdown for a URL within the last 30 days.
  * Returns null when the URL isn't in the index (or the lookup fails) so callers
- * can fall back to the provider snippet.
+ * can fall back to the provider snippet. An aborted `signal` (the overall
+ * highlights deadline) makes it bail with null at the next stage boundary —
+ * the individual DB/GCS/parse calls aren't cancelable, but this keeps a
+ * timed-out pass from continuing through the remaining expensive stages.
  */
 async function getIndexedMarkdownForURL(
   url: string,
   logger: Logger,
+  signal?: AbortSignal,
 ): Promise<string | null> {
-  if (!useIndex) {
+  if (!useIndex || signal?.aborted) {
     return null;
   }
 
@@ -79,7 +83,7 @@ async function getIndexedMarkdownForURL(
       min_age_ms: null,
     });
 
-    if (!rows || rows.length === 0) {
+    if (!rows || rows.length === 0 || signal?.aborted) {
       return null;
     }
 
@@ -96,7 +100,7 @@ async function getIndexedMarkdownForURL(
       logger.child({ module: "search/highlights", method: "getIndexFromGCS" }),
       { indexCreatedAt: selected.created_at },
     );
-    if (!doc || !doc.html) {
+    if (!doc || !doc.html || signal?.aborted) {
       return null;
     }
 
@@ -114,6 +118,9 @@ async function getIndexedMarkdownForURL(
       includeTags: [],
       excludeTags: [],
     } as unknown as ScrapeOptions);
+    if (signal?.aborted) {
+      return null;
+    }
 
     const markdown = await parseMarkdown(cleanedHtml, { logger });
     return markdown && markdown.trim() !== "" ? markdown : null;
@@ -202,8 +209,13 @@ export async function applySearchHighlights(
       // Look up indexed markdown for every URL in parallel, keeping the
       // markdown for each hit so we can send it to the highlight model service.
       const markdowns = await Promise.all(
-        targets.map(t => getIndexedMarkdownForURL(t.url, logger)),
+        targets.map(t =>
+          getIndexedMarkdownForURL(t.url, logger, controller.signal),
+        ),
       );
+      if (controller.signal.aborted) {
+        return { hits: [], results: [] };
+      }
       const hits: {
         apply: (h: string) => void;
         markdown: string;

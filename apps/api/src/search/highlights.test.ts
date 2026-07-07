@@ -38,6 +38,8 @@ vi.mock("./highlight-model", () => ({
 import type { SearchV2Response } from "../lib/entities";
 import { applySearchHighlights } from "./highlights";
 import { generateHighlights } from "./highlight-model";
+import { indexGetRecent5 } from "../db/rpc";
+import { getIndexFromGCS } from "../services";
 
 const logger = {
   info: vi.fn(),
@@ -127,6 +129,38 @@ describe("applySearchHighlights", () => {
         timeoutMs: 300,
       }),
     );
+  });
+
+  it("stops the index pipeline at the next stage boundary after timeout", async () => {
+    // The index DB lookup only resolves past the cap; the dangling work must
+    // bail at the abort checkpoint instead of fetching from GCS and parsing.
+    vi.mocked(indexGetRecent5).mockImplementationOnce(
+      () =>
+        new Promise(resolve =>
+          setTimeout(
+            () =>
+              resolve([
+                {
+                  id: "index-entry",
+                  status: 200,
+                  created_at: "2026-07-01T00:00:00Z",
+                },
+              ] as any),
+            450,
+          ),
+        ),
+    );
+
+    const response = makeResponse();
+    const out = await applySearchHighlights(response, "query", logger);
+
+    expect(out.timedOut).toBe(true);
+    expect(response.web![0].description).toBe("provider snippet");
+
+    // Let the dangling lookup resolve, then confirm downstream stages never ran.
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(getIndexFromGCS).not.toHaveBeenCalled();
+    expect(generateHighlights).not.toHaveBeenCalled();
   });
 
   it("canonical-logs time taken even when there is nothing to highlight", async () => {
