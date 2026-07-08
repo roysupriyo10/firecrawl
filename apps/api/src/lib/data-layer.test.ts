@@ -26,7 +26,7 @@ const originalConfig = {
 const ENABLED_DATA_LAYER_FLAGS = {
   professionalProfileCompanyDataBeta: true,
   organizationDataSourceAccess: {
-    fullenrich: {
+    provider: {
       status: "enabled",
       termsKey: "professional_profile_company_data",
       termsVersion: "2026-07-03",
@@ -66,6 +66,28 @@ describe("data layer routing", () => {
       isDataLayerSupportedUrl("https://other.example/person/example-person"),
     ).resolves.toBe(false);
     await expect(isDataLayerSupportedUrl("not a url")).resolves.toBe(false);
+  });
+
+  it("uses route capabilities when Fire Engine advertises path-level support", async () => {
+    setDataLayerCapabilitiesForTest({
+      domains: ["profiles.example"],
+      routes: [
+        {
+          domains: ["profiles.example"],
+          pathPrefixes: ["/person/", "/company/"],
+        },
+      ],
+    });
+
+    await expect(
+      isDataLayerSupportedUrl("https://profiles.example/person/example-person"),
+    ).resolves.toBe(true);
+    await expect(
+      isDataLayerSupportedUrl("https://profiles.example/company/example"),
+    ).resolves.toBe(true);
+    await expect(
+      isDataLayerSupportedUrl("https://profiles.example/jobs/example"),
+    ).resolves.toBe(false);
   });
 
   it("caches failed Fire Engine capabilities lookups briefly", async () => {
@@ -206,7 +228,7 @@ describe("data layer routing", () => {
         flags: {
           professionalProfileCompanyDataBeta: true,
           organizationDataSourceAccess: {
-            fullenrich: {
+            provider: {
               status: "enabled",
               termsKey: "professional_profile_company_data",
               termsVersion: "2026-07-02",
@@ -225,7 +247,7 @@ describe("data layer routing", () => {
         flags: {
           professionalProfileCompanyDataBeta: true,
           organizationDataSourceAccess: {
-            fullenrich: {
+            provider: {
               status: "disabled",
               termsKey: "professional_profile_company_data",
               termsVersion: "2026-07-03",

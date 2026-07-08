@@ -45,20 +45,26 @@ export type DataLayerScrapeMetadata = {
 
 const SUPPORTED_FORMATS = new Set(["markdown", "json", "deterministicJson"]);
 const DATA_LAYER_SUCCESS_CREDITS = 15;
-export const PROFESSIONAL_PROFILE_COMPANY_DATA_SOURCE_ID = "fullenrich";
-export const PROFESSIONAL_PROFILE_COMPANY_DATA_TERMS_SOURCE_ID =
+const PROFESSIONAL_PROFILE_COMPANY_DATA_TERMS_SOURCE_ID =
   "professional_profile_company_data";
-export const PROFESSIONAL_PROFILE_COMPANY_DATA_BETA_FLAG =
+const PROFESSIONAL_PROFILE_COMPANY_DATA_BETA_FLAG =
   "professionalProfileCompanyDataBeta";
-export const THIRD_PARTY_DATA_TERMS_VERSION = "2026-07-03";
-export const THIRD_PARTY_DATA_TERMS_REQUIRED_CODE =
-  "THIRD_PARTY_DATA_TERMS_REQUIRED";
-export const THIRD_PARTY_DATA_TERMS_REQUIRED_MESSAGE =
+const THIRD_PARTY_DATA_TERMS_VERSION = "2026-07-03";
+const THIRD_PARTY_DATA_TERMS_REQUIRED_CODE = "THIRD_PARTY_DATA_TERMS_REQUIRED";
+const THIRD_PARTY_DATA_TERMS_REQUIRED_MESSAGE =
   "An organization admin must accept the Professional Profile & Company Data terms before this URL can be processed.";
 
 const DATA_LAYER_CAPABILITIES_PATH = "/v1/data-layer/capabilities";
 const DATA_LAYER_CAPABILITIES_TIMEOUT_MS = 2_000;
 const DATA_LAYER_CAPABILITIES_FALLBACK_TTL_MS = 30_000;
+
+const dataLayerCapabilityRouteSchema = z
+  .object({
+    domains: z.string().array().optional(),
+    baseDomains: z.string().array().optional(),
+    pathPrefixes: z.string().array().optional(),
+  })
+  .passthrough();
 
 const dataLayerCapabilitiesSchema = z
   .object({
@@ -66,12 +72,20 @@ const dataLayerCapabilitiesSchema = z
     ttlSeconds: z.number().positive().optional(),
     domains: z.string().array().optional(),
     baseDomains: z.string().array().optional(),
+    routes: dataLayerCapabilityRouteSchema.array().optional(),
   })
   .passthrough();
+
+type DataLayerCapabilityRoute = {
+  domains: Set<string>;
+  baseDomains: Set<string>;
+  pathPrefixes: string[];
+};
 
 type DataLayerCapabilities = {
   domains: Set<string>;
   baseDomains: Set<string>;
+  routes: DataLayerCapabilityRoute[];
   ttlMs: number;
 };
 
@@ -87,6 +101,15 @@ function normalizeHost(host: string): string {
   return host.trim().toLowerCase().replace(/\.$/, "");
 }
 
+function normalizePathPrefix(prefix: string): string {
+  const trimmed = prefix.trim();
+  if (!trimmed) {
+    return "/";
+  }
+
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
 function normalizeCapabilities(
   raw: z.infer<typeof dataLayerCapabilitiesSchema>,
 ): DataLayerCapabilities {
@@ -98,6 +121,11 @@ function normalizeCapabilities(
   return {
     domains: new Set((raw.domains ?? []).map(normalizeHost)),
     baseDomains: new Set((raw.baseDomains ?? []).map(normalizeHost)),
+    routes: (raw.routes ?? []).map(route => ({
+      domains: new Set((route.domains ?? []).map(normalizeHost)),
+      baseDomains: new Set((route.baseDomains ?? []).map(normalizeHost)),
+      pathPrefixes: (route.pathPrefixes ?? []).map(normalizePathPrefix),
+    })),
     ttlMs: Math.max(1_000, ttlMs),
   };
 }
@@ -171,6 +199,14 @@ function dataLayerCapabilitiesMatchUrl(
   }
 
   const host = normalizeHost(parsed.hostname);
+  const pathname = parsed.pathname || "/";
+
+  if (capabilities.routes.length > 0) {
+    return capabilities.routes.some(route =>
+      dataLayerRouteMatchesUrl(route, host, pathname),
+    );
+  }
+
   if (capabilities.domains.has(host)) {
     return true;
   }
@@ -182,6 +218,28 @@ function dataLayerCapabilitiesMatchUrl(
   }
 
   return false;
+}
+
+function dataLayerRouteMatchesUrl(
+  route: DataLayerCapabilityRoute,
+  host: string,
+  pathname: string,
+): boolean {
+  const hostMatches =
+    route.domains.has(host) ||
+    [...route.baseDomains].some(
+      baseDomain => host === baseDomain || host.endsWith(`.${baseDomain}`),
+    );
+
+  if (!hostMatches) {
+    return false;
+  }
+
+  if (route.pathPrefixes.length === 0) {
+    return true;
+  }
+
+  return route.pathPrefixes.some(prefix => pathname.startsWith(prefix));
 }
 
 export async function isDataLayerSupportedUrl(
@@ -275,14 +333,23 @@ export function isSupportedDataLayerFormatRequest(
 
 function getOrganizationDataSourceAccess(
   flags: RouteInput["flags"],
-  dataSourceId: string,
 ): OrganizationDataSourceAccessRecord | null {
-  const access = flags?.organizationDataSourceAccess?.[dataSourceId];
+  const access = flags?.organizationDataSourceAccess;
   if (typeof access !== "object" || access === null) {
     return null;
   }
 
-  return access;
+  for (const record of Object.values(access)) {
+    if (
+      typeof record === "object" &&
+      record !== null &&
+      record.termsKey === PROFESSIONAL_PROFILE_COMPANY_DATA_TERMS_SOURCE_ID
+    ) {
+      return record;
+    }
+  }
+
+  return null;
 }
 
 function hasCurrentOrganizationDataSourceTerms(
@@ -302,10 +369,7 @@ function getProfessionalProfileCompanyDataDecision(
     return "allowed";
   }
 
-  const access = getOrganizationDataSourceAccess(
-    flags,
-    PROFESSIONAL_PROFILE_COMPANY_DATA_SOURCE_ID,
-  );
+  const access = getOrganizationDataSourceAccess(flags);
   if (access) {
     if (access.status !== "enabled") {
       return "not_enabled";
@@ -405,7 +469,7 @@ export async function canUseDataLayerForRequest(
   return (await getDataLayerAccessForRequest(input)).allowed;
 }
 
-export function getThirdPartyDataTermsSettingsUrl(): string {
+function getThirdPartyDataTermsSettingsUrl(): string {
   return `${config.FIRECRAWL_DASHBOARD_URL.replace(/\/+$/, "")}/app/settings?tab=data-sources`;
 }
 
@@ -446,6 +510,11 @@ export function getDataLayerSuccessCredits(input: {
 export function setDataLayerCapabilitiesForTest(input: {
   domains?: string[];
   baseDomains?: string[];
+  routes?: {
+    domains?: string[];
+    baseDomains?: string[];
+    pathPrefixes?: string[];
+  }[];
   ttlSeconds?: number;
 }) {
   cachedCapabilities = {
