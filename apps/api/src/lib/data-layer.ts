@@ -10,6 +10,21 @@ type AcceptedDataSourceTerms = Record<
   string | string[] | Record<string, unknown> | null | undefined
 >;
 
+type OrganizationDataSourceAccessRecord = {
+  status?: string | null;
+  termsKey?: string | null;
+  termsVersion?: string | null;
+  termsAcceptedAt?: string | null;
+  enabledAt?: string | null;
+  disabledAt?: string | null;
+  disabledReason?: string | null;
+};
+
+type OrganizationDataSourceAccess = Record<
+  string,
+  OrganizationDataSourceAccessRecord | null | undefined
+>;
+
 type RouteInput = {
   url: string;
   formats?: FormatObject[] | unknown[];
@@ -25,6 +40,7 @@ type RouteInput = {
   flags?: {
     professionalProfileCompanyDataBeta?: boolean;
     acceptedDataSourceTerms?: AcceptedDataSourceTerms | null;
+    organizationDataSourceAccess?: OrganizationDataSourceAccess | null;
   } | null;
 };
 
@@ -35,6 +51,7 @@ export type DataLayerScrapeMetadata = {
 
 const SUPPORTED_FORMATS = new Set(["markdown", "json", "deterministicJson"]);
 const DATA_LAYER_SUCCESS_CREDITS = 15;
+export const PROFESSIONAL_PROFILE_COMPANY_DATA_SOURCE_ID = "fullenrich";
 export const PROFESSIONAL_PROFILE_COMPANY_DATA_TERMS_SOURCE_ID =
   "professional_profile_company_data";
 export const PROFESSIONAL_PROFILE_COMPANY_DATA_BETA_FLAG =
@@ -284,16 +301,60 @@ function hasAcceptedDataSourceTerms(
   return false;
 }
 
-function hasAcceptedThirdPartyDataTerms(flags: RouteInput["flags"]): boolean {
+function getOrganizationDataSourceAccess(
+  flags: RouteInput["flags"],
+  dataSourceId: string,
+): OrganizationDataSourceAccessRecord | null {
+  const access = flags?.organizationDataSourceAccess?.[dataSourceId];
+  if (typeof access !== "object" || access === null) {
+    return null;
+  }
+
+  return access;
+}
+
+function hasCurrentOrganizationDataSourceTerms(
+  access: OrganizationDataSourceAccessRecord,
+  termsKey: string,
+  version: string,
+): boolean {
+  return access.termsKey === termsKey && access.termsVersion === version;
+}
+
+type DataSourceAccessDecision = "allowed" | "terms_required" | "not_enabled";
+
+function getProfessionalProfileCompanyDataDecision(
+  flags: RouteInput["flags"],
+): DataSourceAccessDecision {
   if (config.USE_DB_AUTHENTICATION !== true) {
-    return true;
+    return "allowed";
+  }
+
+  const access = getOrganizationDataSourceAccess(
+    flags,
+    PROFESSIONAL_PROFILE_COMPANY_DATA_SOURCE_ID,
+  );
+  if (access) {
+    if (access.status !== "enabled") {
+      return "not_enabled";
+    }
+
+    return hasCurrentOrganizationDataSourceTerms(
+      access,
+      PROFESSIONAL_PROFILE_COMPANY_DATA_TERMS_SOURCE_ID,
+      THIRD_PARTY_DATA_TERMS_VERSION,
+    )
+      ? "allowed"
+      : "terms_required";
   }
 
   return hasAcceptedDataSourceTerms(
     flags,
     PROFESSIONAL_PROFILE_COMPANY_DATA_TERMS_SOURCE_ID,
     THIRD_PARTY_DATA_TERMS_VERSION,
-  );
+  )
+    ? "allowed"
+    : "terms_required";
 }
 
 function isDataLayerEligibleRequest(input: RouteInput): boolean {
@@ -359,8 +420,14 @@ export async function getDataLayerAccessForRequest(input: RouteInput): Promise<
     return { allowed: false, termsRequired: false };
   }
 
-  if (!hasAcceptedThirdPartyDataTerms(input.flags)) {
+  const dataSourceDecision = getProfessionalProfileCompanyDataDecision(
+    input.flags,
+  );
+  if (dataSourceDecision === "terms_required") {
     return { allowed: false, termsRequired: true };
+  }
+  if (dataSourceDecision !== "allowed") {
+    return { allowed: false, termsRequired: false };
   }
 
   return { allowed: true, termsRequired: false };

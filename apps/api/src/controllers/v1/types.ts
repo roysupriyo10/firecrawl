@@ -1335,6 +1335,18 @@ export type TeamFlags = {
   enrichBeta?: boolean;
   professionalProfileCompanyDataBeta?: boolean;
   acceptedDataSourceTerms?: Record<string, string[]>;
+  organizationDataSourceAccess?: Record<
+    string,
+    {
+      status?: "enabled" | "disabled" | "suspended" | string | null;
+      termsKey?: string | null;
+      termsVersion?: string | null;
+      termsAcceptedAt?: string | null;
+      enabledAt?: string | null;
+      disabledAt?: string | null;
+      disabledReason?: string | null;
+    }
+  >;
   // routes the team's new queue work to the FoundationDB backend
   nuqFdb?: boolean;
 } | null;

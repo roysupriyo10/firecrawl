@@ -25,8 +25,16 @@ const originalConfig = {
 };
 const ENABLED_DATA_LAYER_FLAGS = {
   professionalProfileCompanyDataBeta: true,
-  acceptedDataSourceTerms: {
-    professional_profile_company_data: ["2026-07-03"],
+  organizationDataSourceAccess: {
+    fullenrich: {
+      status: "enabled",
+      termsKey: "professional_profile_company_data",
+      termsVersion: "2026-07-03",
+      termsAcceptedAt: "2026-07-03T00:00:00.000Z",
+      enabledAt: "2026-07-03T00:00:00.000Z",
+      disabledAt: null,
+      disabledReason: null,
+    },
   },
 };
 
@@ -190,7 +198,50 @@ describe("data layer routing", () => {
     ).resolves.toBe(false);
   });
 
-  it("uses accepted data source terms from the auth chunk flags", async () => {
+  it("requires current terms when organization data source access is stale", async () => {
+    await expect(
+      getDataLayerAccessForRequest({
+        url: "https://profiles.example/person/example-person",
+        formats: [{ type: "markdown" }],
+        flags: {
+          professionalProfileCompanyDataBeta: true,
+          organizationDataSourceAccess: {
+            fullenrich: {
+              status: "enabled",
+              termsKey: "professional_profile_company_data",
+              termsVersion: "2026-07-02",
+            },
+          },
+        },
+      }),
+    ).resolves.toEqual({ allowed: false, termsRequired: true });
+  });
+
+  it("does not route or prompt for terms when organization data source access is disabled", async () => {
+    await expect(
+      getDataLayerAccessForRequest({
+        url: "https://profiles.example/person/example-person",
+        formats: [{ type: "markdown" }],
+        flags: {
+          professionalProfileCompanyDataBeta: true,
+          acceptedDataSourceTerms: {
+            professional_profile_company_data: ["2026-07-03"],
+          },
+          organizationDataSourceAccess: {
+            fullenrich: {
+              status: "disabled",
+              termsKey: "professional_profile_company_data",
+              termsVersion: "2026-07-03",
+              disabledAt: "2026-07-04T00:00:00.000Z",
+              disabledReason: "customer_disabled",
+            },
+          },
+        },
+      }),
+    ).resolves.toEqual({ allowed: false, termsRequired: false });
+  });
+
+  it("uses accepted data source terms from the legacy auth chunk flags", async () => {
     await expect(
       canUseDataLayerForRequest({
         url: "https://profiles.example/person/example-person",
