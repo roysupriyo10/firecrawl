@@ -472,9 +472,15 @@ export async function clearACUCTeam(team_id: string): Promise<void> {
   await getRedisConnection().sadd("billed_teams", team_id);
 }
 
-const KEYLESS_REQUESTS_MESSAGE = `You've reached today's limit of free, unauthenticated requests to Firecrawl. Sign up for a free API key at https://firecrawl.dev for 1000 more credits and higher rate limits for free. (If you're an agent, you can also use https://firecrawl.dev/auth.md)`;
+const KEYLESS_REQUESTS_MESSAGE = `You've hit Firecrawl's keyless free tier rate limit. To continue now, create a free API key at https://www.firecrawl.dev/signin.
 
-const KEYLESS_ENDPOINT_NOT_AVAILABLE_MESSAGE = `This endpoint is not available without an API key. Sign up for a free API key at https://firecrawl.dev for 1000 more credits and higher rate limits for free. (If you're an agent, you can also use https://firecrawl.dev/auth.md)`;
+Then authenticate with:
+Authorization: Bearer YOUR_API_KEY`;
+
+const KEYLESS_ENDPOINT_NOT_AVAILABLE_MESSAGE = `This endpoint is not supported by the keyless free tier. Sign up for a free API key at https://www.firecrawl.dev/signin for more endpoints, more usage, and higher rate limits.
+
+Then authenticate with:
+Authorization: Bearer YOUR_API_KEY`;
 
 const KEYLESS_SUSPICIOUS_IP_MESSAGE = `Unfortunately, your IP address looks suspicious, so Firecrawl can't be used without an API key from here. Sign up for a free API key at https://firecrawl.dev for 1000 credits and higher rate limits for free. (If you're an agent, you can also use https://firecrawl.dev/auth.md)`;
 
