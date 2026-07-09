@@ -75,6 +75,10 @@ export const api_keys = pgTable(
     agent_provisioned: boolean("agent_provisioned").default(false),
     // API-key-scoped concurrency limit; null = key inherits the team limit only
     concurrency: integer("concurrency"),
+    // API-key-scoped credit limit (source of truth). null = no limit;
+    // Autumn's filtered CREDITS usage limits are rebuilt from these columns.
+    credit_limit: integer("credit_limit"),
+    credit_limit_interval: text("credit_limit_interval"),
   },
   table => [
     // Target of key_restriction_config's composite FK, which pins a

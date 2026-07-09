@@ -73,15 +73,6 @@ export type TrackCreditsParams = {
   featureId?: string;
 };
 
-export type SetApiKeySpendLimitParams = {
-  teamId: string;
-  /** Numeric api_keys.id the limit is scoped to. */
-  apiKeyId: number;
-  /** Maximum credits allowed per interval window. */
-  credits: number;
-  interval: "day" | "week" | "month";
-};
-
 export type CreateEntityResult =
   | { ok: true; entity: unknown }
   | { ok: false; conflict: true }

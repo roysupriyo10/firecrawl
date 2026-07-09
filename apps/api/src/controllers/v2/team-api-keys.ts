@@ -65,9 +65,17 @@ export async function createApiKeyController(
     ownerId = callerKey?.owner_id ?? null;
   }
 
+  // Our DB is the source of truth for the limit; persist it atomically with the
+  // key. Autumn's enforcement is then derived from these columns.
   const [created] = await db
     .insert(schema.api_keys)
-    .values({ team_id: teamId, name: body.name ?? null, owner_id: ownerId })
+    .values({
+      team_id: teamId,
+      name: body.name ?? null,
+      owner_id: ownerId,
+      credit_limit: spendLimit?.credits ?? null,
+      credit_limit_interval: spendLimit?.interval ?? null,
+    })
     .returning({
       id: schema.api_keys.id,
       key: schema.api_keys.key,
@@ -84,12 +92,9 @@ export async function createApiKeyController(
   const token = apiKeyToFcApiKey(created.key)!;
 
   if (spendLimit) {
-    const applied = await autumnService.setApiKeySpendLimit({
-      teamId,
-      apiKeyId: created.id,
-      credits: spendLimit.credits,
-      interval: spendLimit.interval,
-    });
+    // Push the limit to Autumn by rebuilding the org's per-key usage limits
+    // from the DB (race-safe, under a per-customer lock).
+    const applied = await autumnService.syncApiKeyCreditLimits(teamId);
 
     // Roll back so we never hand back a key missing the limit the caller
     // asked for (which could otherwise overspend unbounded).

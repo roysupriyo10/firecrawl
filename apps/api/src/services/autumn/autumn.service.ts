@@ -1,8 +1,9 @@
 import { randomUUID } from "crypto";
 import { logger } from "../../lib/logger";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { dbRr } from "../../db/connection";
 import * as schema from "../../db/schema";
+import { getRedisConnection } from "../queue-service";
 import { autumnClient } from "./client";
 import type {
   CreateEntityParams,
@@ -14,7 +15,6 @@ import type {
   GetOrCreateCustomerParams,
   LockCreditsParams,
   LockCreditsResult,
-  SetApiKeySpendLimitParams,
   TrackCreditsParams,
   TrackParams,
 } from "./types";
@@ -25,12 +25,12 @@ export const SEARCH_CREDITS_FEATURE_ID = "SEARCH_CREDITS";
 
 /**
  * Event property that identifies the API key (numeric api_keys.id). A per-key
- * spend limit is an Autumn usage limit on CREDITS whose filter matches this
+ * credit limit is an Autumn usage limit on CREDITS whose filter matches this
  * property, and check/track send the same property so only that key's usage
  * counts toward the cap. Must stay in sync with the checkCredits/trackCredits
  * `properties.apiKeyId` payload.
  */
-const API_KEY_SPEND_LIMIT_PROPERTY = "apiKeyId";
+const API_KEY_CREDIT_LIMIT_PROPERTY = "apiKeyId";
 
 /**
  * Maps a billing endpoint to the Autumn feature ID it should bill against.
@@ -549,74 +549,151 @@ export class AutumnService {
   }
 
   /**
-   * Sets a per-API-key spend limit as an Autumn usage limit on CREDITS, filtered
-   * to the given api key id. Preserves other keys' limits and any org-level
-   * (unfiltered) usage limits via read-merge-write. Returns false when billing
-   * is unavailable (no client / preview team) or the Autumn call fails, so the
-   * caller can decide how to surface the failure.
+   * Runs `fn` while holding a short per-customer Redis lock, so concurrent
+   * rebuilds of a customer's usage limits can't clobber each other. Retries
+   * acquisition with a small backoff; returns null if the lock can't be taken
+   * within the window. Releases only if we still own it (token CAS).
    */
-  async setApiKeySpendLimit({
-    teamId,
-    apiKeyId,
-    credits,
-    interval,
-  }: SetApiKeySpendLimitParams): Promise<boolean> {
+  private async withCustomerCreditLimitLock<T>(
+    customerId: string,
+    fn: () => Promise<T>,
+  ): Promise<T | null> {
+    const redis = getRedisConnection();
+    const lockKey = `autumn:credit-limit-lock:${customerId}`;
+    const token = randomUUID();
+    const LOCK_TTL_MS = 10_000;
+    const MAX_WAIT_MS = 8_000;
+    const POLL_MS = 100;
+
+    const start = Date.now();
+    let acquired = false;
+    while (Date.now() - start < MAX_WAIT_MS) {
+      const res = await redis.set(lockKey, token, "PX", LOCK_TTL_MS, "NX");
+      if (res === "OK") {
+        acquired = true;
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, POLL_MS));
+    }
+    if (!acquired) {
+      logger.warn("Could not acquire Autumn credit-limit lock", { customerId });
+      return null;
+    }
+
+    try {
+      return await fn();
+    } finally {
+      // Compare-and-delete so we never release a lock a later holder took over
+      // after our TTL expired.
+      try {
+        await redis.eval(
+          "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+          1,
+          lockKey,
+          token,
+        );
+      } catch (releaseError) {
+        logger.warn("Failed to release Autumn credit-limit lock", {
+          customerId,
+          error: releaseError,
+        });
+      }
+    }
+  }
+
+  /**
+   * Rebuilds the customer's per-API-key credit limits in Autumn from our DB
+   * (the source of truth). Reads every api_keys row for the team's org that has
+   * a credit_limit set and replaces all apiKeyId-filtered CREDITS usage limits
+   * with that set, preserving any unfiltered/other usage limits. The whole
+   * read-and-write runs under a per-customer lock so concurrent key changes
+   * can't drop one another's limit. Returns false when billing is unavailable
+   * or the sync fails, so callers can surface/roll back.
+   */
+  async syncApiKeyCreditLimits(teamId: string): Promise<boolean> {
     if (!autumnClient || this.isPreviewTeam(teamId)) return false;
 
     try {
       const customerId = await this.ensureTrackingContext(teamId);
-      const customer = await autumnClient.customers.get({ customerId });
-      const existing = customer.billingControls?.usageLimits ?? [];
 
-      // Drop any prior limit for this key, keep everything else, then add the
-      // new one. Autumn merges billingControls per-field, so sending only
-      // usageLimits leaves auto-recharge/overage/alerts untouched.
-      const usageLimits = existing
-        .filter(
-          limit =>
-            !(
-              limit.featureId === CREDITS_FEATURE_ID &&
-              Number(
-                limit.filter?.properties?.[API_KEY_SPEND_LIMIT_PROPERTY],
-              ) === apiKeyId
-            ),
-        )
-        .map(limit => ({
-          featureId: limit.featureId,
-          limit: limit.limit,
-          interval: limit.interval as "day" | "week" | "month" | "year",
-          enabled: limit.enabled,
-          ...(limit.filter ? { filter: limit.filter } : {}),
-        }));
-
-      usageLimits.push({
-        featureId: CREDITS_FEATURE_ID,
-        limit: credits,
-        interval,
-        enabled: true,
-        filter: { properties: { [API_KEY_SPEND_LIMIT_PROPERTY]: apiKeyId } },
-      });
-
-      await autumnClient.customers.update({
+      const result = await this.withCustomerCreditLimitLock(
         customerId,
-        billingControls: { usageLimits },
-      });
+        async () => {
+          // All keys across the org (the Autumn customer) with a limit set.
+          const rows = await dbRr
+            .select({
+              id: schema.api_keys.id,
+              credits: schema.api_keys.credit_limit,
+              interval: schema.api_keys.credit_limit_interval,
+            })
+            .from(schema.api_keys)
+            .innerJoin(
+              schema.teams,
+              eq(schema.teams.id, schema.api_keys.team_id),
+            )
+            .where(
+              and(
+                eq(schema.teams.org_id, customerId),
+                isNotNull(schema.api_keys.credit_limit),
+              ),
+            );
 
-      logger.info("Autumn setApiKeySpendLimit succeeded", {
-        customerId,
-        apiKeyId,
-        credits,
-        interval,
-      });
+          const customer = await autumnClient!.customers.get({ customerId });
+          const existing = customer.billingControls?.usageLimits ?? [];
+
+          // Keep everything that isn't one of our apiKeyId-filtered CREDITS
+          // limits (org-level caps, other-property filters), then re-add the
+          // per-key limits authoritatively from the DB.
+          const preserved = existing
+            .filter(
+              limit =>
+                !(
+                  limit.featureId === CREDITS_FEATURE_ID &&
+                  limit.filter?.properties?.[API_KEY_CREDIT_LIMIT_PROPERTY] !==
+                    undefined
+                ),
+            )
+            .map(limit => ({
+              featureId: limit.featureId,
+              limit: limit.limit,
+              interval: limit.interval as "day" | "week" | "month" | "year",
+              enabled: limit.enabled,
+              ...(limit.filter ? { filter: limit.filter } : {}),
+            }));
+
+          const perKey = rows
+            .filter(row => row.credits !== null && row.interval !== null)
+            .map(row => ({
+              featureId: CREDITS_FEATURE_ID,
+              limit: row.credits as number,
+              interval: row.interval as "day" | "week" | "month",
+              enabled: true,
+              filter: {
+                properties: { [API_KEY_CREDIT_LIMIT_PROPERTY]: row.id },
+              },
+            }));
+
+          await autumnClient!.customers.update({
+            customerId,
+            billingControls: { usageLimits: [...preserved, ...perKey] },
+          });
+
+          return true;
+        },
+      );
+
+      if (result === null) {
+        logger.error("Autumn syncApiKeyCreditLimits could not acquire lock", {
+          teamId,
+          customerId,
+        });
+        return false;
+      }
+
+      logger.info("Autumn syncApiKeyCreditLimits succeeded", { customerId });
       return true;
     } catch (error) {
-      logger.error("Autumn setApiKeySpendLimit failed", {
-        teamId,
-        apiKeyId,
-        credits,
-        interval,
-        error,
-      });
+      logger.error("Autumn syncApiKeyCreditLimits failed", { teamId, error });
       return false;
     }
   }
