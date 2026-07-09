@@ -14,6 +14,7 @@ import type {
   GetOrCreateCustomerParams,
   LockCreditsParams,
   LockCreditsResult,
+  SetApiKeySpendLimitParams,
   TrackCreditsParams,
   TrackParams,
 } from "./types";
@@ -21,6 +22,15 @@ import type {
 const TEAM_FEATURE_ID = "TEAM";
 export const CREDITS_FEATURE_ID = "CREDITS";
 export const SEARCH_CREDITS_FEATURE_ID = "SEARCH_CREDITS";
+
+/**
+ * Event property that identifies the API key (numeric api_keys.id). A per-key
+ * spend limit is an Autumn usage limit on CREDITS whose filter matches this
+ * property, and check/track send the same property so only that key's usage
+ * counts toward the cap. Must stay in sync with the checkCredits/trackCredits
+ * `properties.apiKeyId` payload.
+ */
+const API_KEY_SPEND_LIMIT_PROPERTY = "apiKeyId";
 
 /**
  * Maps a billing endpoint to the Autumn feature ID it should bill against.
@@ -535,6 +545,79 @@ export class AutumnService {
         "Autumn refundCredits failed — billing API may be unavailable",
         { teamId, value, error },
       );
+    }
+  }
+
+  /**
+   * Sets a per-API-key spend limit as an Autumn usage limit on CREDITS, filtered
+   * to the given api key id. Preserves other keys' limits and any org-level
+   * (unfiltered) usage limits via read-merge-write. Returns false when billing
+   * is unavailable (no client / preview team) or the Autumn call fails, so the
+   * caller can decide how to surface the failure.
+   */
+  async setApiKeySpendLimit({
+    teamId,
+    apiKeyId,
+    credits,
+    interval,
+  }: SetApiKeySpendLimitParams): Promise<boolean> {
+    if (!autumnClient || this.isPreviewTeam(teamId)) return false;
+
+    try {
+      const customerId = await this.ensureTrackingContext(teamId);
+      const customer = await autumnClient.customers.get({ customerId });
+      const existing = customer.billingControls?.usageLimits ?? [];
+
+      // Drop any prior limit for this key, keep everything else, then add the
+      // new one. Autumn merges billingControls per-field, so sending only
+      // usageLimits leaves auto-recharge/overage/alerts untouched.
+      const usageLimits = existing
+        .filter(
+          limit =>
+            !(
+              limit.featureId === CREDITS_FEATURE_ID &&
+              Number(
+                limit.filter?.properties?.[API_KEY_SPEND_LIMIT_PROPERTY],
+              ) === apiKeyId
+            ),
+        )
+        .map(limit => ({
+          featureId: limit.featureId,
+          limit: limit.limit,
+          interval: limit.interval as "day" | "week" | "month" | "year",
+          enabled: limit.enabled,
+          ...(limit.filter ? { filter: limit.filter } : {}),
+        }));
+
+      usageLimits.push({
+        featureId: CREDITS_FEATURE_ID,
+        limit: credits,
+        interval,
+        enabled: true,
+        filter: { properties: { [API_KEY_SPEND_LIMIT_PROPERTY]: apiKeyId } },
+      });
+
+      await autumnClient.customers.update({
+        customerId,
+        billingControls: { usageLimits },
+      });
+
+      logger.info("Autumn setApiKeySpendLimit succeeded", {
+        customerId,
+        apiKeyId,
+        credits,
+        interval,
+      });
+      return true;
+    } catch (error) {
+      logger.error("Autumn setApiKeySpendLimit failed", {
+        teamId,
+        apiKeyId,
+        credits,
+        interval,
+        error,
+      });
+      return false;
     }
   }
 }
