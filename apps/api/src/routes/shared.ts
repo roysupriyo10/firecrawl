@@ -148,6 +148,9 @@ export function checkCreditsMiddleware(
         properties: {
           source: "checkCreditsMiddleware",
           path: req.path,
+          // Forward the API key id so Autumn can enforce per-key usage limits
+          // on the check, mirroring what we send when tracking usage.
+          apiKeyId: req.acuc?.api_key_id ?? null,
         },
         featureId,
       });
