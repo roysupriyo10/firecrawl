@@ -81,6 +81,11 @@ const configSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
+  FIREWORKS_API_KEY: z.string().optional(),
+  DEEPINFRA_API_KEY: z.string().optional(),
   XAI_API_KEY: z.string().optional(),
   LLAMAPARSE_API_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -291,6 +296,9 @@ const configSchema = z.object({
   DEBUG_BRANDING: z.stringbool().optional(),
 
   // AI/ML
+  // MODEL_PROVIDER overrides hardcoded getModel(..., "openai") call sites for
+  // self-host (e.g. google | openai | ollama). Pair with MODEL_NAME.
+  MODEL_PROVIDER: z.string().optional(),
   MODEL_NAME: z.string().optional(),
   MODEL_EMBEDDING_NAME: z.string().optional(),
   OLLAMA_BASE_URL: z.string().optional(),

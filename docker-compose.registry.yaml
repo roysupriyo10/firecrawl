@@ -1,0 +1,25 @@
+# Override: run custom services from YOUR registry (FIRECRAWL_REGISTRY), not local builds
+# and not ghcr.io/firecrawl. Used by scripts/deploy-selfhost.sh.
+#
+# Usage:
+#   export FIRECRAWL_REGISTRY=ghcr.io/<your-user>
+#   docker compose -f docker-compose.yaml -f docker-compose.registry.yaml pull
+#   docker compose -f docker-compose.yaml -f docker-compose.registry.yaml up -d --no-build
+
+name: firecrawl
+
+x-common-service: &common-service
+  image: ${FIRECRAWL_REGISTRY:?set FIRECRAWL_REGISTRY e.g. ghcr.io/you}/firecrawl:${FIRECRAWL_TAG:-latest}
+  build: !reset null
+
+services:
+  api:
+    <<: *common-service
+
+  playwright-service:
+    image: ${FIRECRAWL_REGISTRY}/firecrawl-playwright:${FIRECRAWL_TAG:-latest}
+    build: !reset null
+
+  nuq-postgres:
+    image: ${FIRECRAWL_REGISTRY}/firecrawl-nuq-postgres:${FIRECRAWL_TAG:-latest}
+    build: !reset null

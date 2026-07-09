@@ -53,14 +53,50 @@ USE_DB_AUTHENTICATION=false
 # Provide your OpenAI API key here to enable AI features
 # OPENAI_API_KEY=
 
-# Experimental: Use Ollama
+# Optional: force which provider getModel() uses for extract/scrape LLM paths.
+# When set, overrides hardcoded call-site providers (e.g. "openai") so you can
+# switch self-host models without code changes. Specialty multi-provider paths
+# (Vertex rerank, browser agent, etc.) use getModelExact() and are unaffected.
+# Values: openai | ollama | google | anthropic | groq | openrouter | fireworks | deepinfra | vertex
+# MODEL_PROVIDER=google
+# MODEL_NAME=gemini-3.5-flash
+
+# Experimental: Use Ollama (also sets default provider to ollama if MODEL_PROVIDER unset)
 # OLLAMA_BASE_URL=http://localhost:11434/api
-# MODEL_NAME=deepseek-r1:7b
+# MODEL_NAME=llama3.1:8b
 # MODEL_EMBEDDING_NAME=nomic-embed-text
 
-# Experimental: Use any OpenAI-compatible API
+# Experimental: Use any OpenAI-compatible API (DeepSeek, Gemini OpenAI compat, etc.)
 # OPENAI_BASE_URL=https://example.com/v1
 # OPENAI_API_KEY=
+# For Gemini via Google AI Studio OpenAI-compatible endpoint:
+# OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+# OPENAI_API_KEY=<AI Studio key>
+# MODEL_PROVIDER=openai
+# MODEL_NAME=gemini-3.5-flash
+# Or native Google provider:
+# GOOGLE_GENERATIVE_AI_API_KEY=<AI Studio key>
+# MODEL_PROVIDER=google
+# MODEL_NAME=gemini-3.5-flash
+
+# Groq (free tier; MODEL_NAME must be a Groq model id, not gemini-*).
+# JSON extract needs a model with json_schema support (not llama-3.3-70b):
+# GROQ_API_KEY=gsk_...
+# MODEL_PROVIDER=groq
+# MODEL_NAME=openai/gpt-oss-20b
+
+# OpenRouter (free models end in :free):
+# OPENROUTER_API_KEY=sk-or-...
+# MODEL_PROVIDER=openrouter
+# MODEL_NAME=openrouter/free
+
+## === Screenshot + branding (self-host via Playwright) ===
+# With PLAYWRIGHT_MICROSERVICE_URL configured (docker-compose default), formats
+# "screenshot" / { type: "screenshot", fullPage: true } and "branding" work
+# without fire-engine. Screenshots are returned as data URLs. Branding reuses
+# the same in-page CDP script as cloud chrome-cdp. Missing screenshot/branding
+# after a request fails the scrape (no silent partial success).
+# PLAYWRIGHT_MICROSERVICE_URL=http://playwright-service:3000/scrape
 
 ## === Proxy ===
 # PROXY_SERVER can be a full URL (e.g. http://0.1.2.3:1234) or just an IP and port combo (e.g. 0.1.2.3:1234)
@@ -140,6 +176,31 @@ BULL_AUTH_KEY=CHANGEME
     This will run a local instance of Firecrawl which can be accessed at `http://localhost:3002`.
     
     You should be able to see the Bull Queue Manager UI on `http://localhost:3002/admin/CHANGEME/queues`.
+
+### Multi-machine deploy (build once, pull everywhere)
+
+You do **not** need to rebuild Redis, RabbitMQ, or FoundationDB — those pull from Docker Hub as-is. Only the three **custom** images are slow to build, and they go to **your** registry (not `ghcr.io/firecrawl`).
+
+| Service | Local build context | Image under your registry |
+| --- | --- | --- |
+| `api` / workers | `apps/api` | `$FIRECRAWL_REGISTRY/firecrawl:$TAG` |
+| `playwright-service` | `apps/playwright-service-ts` | `$FIRECRAWL_REGISTRY/firecrawl-playwright:$TAG` |
+| `nuq-postgres` | `apps/nuq-postgres` | `$FIRECRAWL_REGISTRY/firecrawl-nuq-postgres:$TAG` |
+
+**Buildx vs BuildKit:** [BuildKit](https://github.com/moby/buildkit) is the build *engine* (layer cache, remote cache, parallel builds). [Docker Buildx](https://docs.docker.com/build/architecture/) is the Docker CLI plugin that *drives* BuildKit. Prefer Buildx on each machine (`docker buildx`); you do not pick one instead of the other. Without the buildx plugin, the deploy script falls back to classic `docker build`/`push` (no remote layer cache).
+
+Idempotent script (login → build with registry cache → push → pull → up):
+
+```bash
+cp .env.deploy.example .env.deploy
+# set FIRECRAWL_REGISTRY=ghcr.io/<your-user> and a token with write:packages
+
+chmod +x scripts/deploy-selfhost.sh
+./scripts/deploy-selfhost.sh              # builder machine: build+push+pull+up
+./scripts/deploy-selfhost.sh pull-up      # other machines: pull+up only
+```
+
+Compose uses `docker-compose.registry.yaml` so services run from your registry images (`--no-build`). Official `ghcr.io/firecrawl/...` comments in `docker-compose.yaml` are unrelated stock options — the deploy path never uses them.
 
 5. *(Optional)* Test the API
 

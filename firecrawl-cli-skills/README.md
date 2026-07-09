@@ -1,5 +1,14 @@
-# Firecrawl CLI Skills
+# Firecrawl CLI skills pointer
 
-[Firecrawl CLI skills](https://github.com/firecrawl/cli/tree/main/skills)
+Live-web CLI skills still come from the official CLI package:
 
-Agent skills that teach coding agents how to use the Firecrawl CLI for live web work during a session.
+```bash
+npx -y firecrawl-cli@latest init --all --browser
+# or: firecrawl setup skills
+```
+
+**Build + self-host skills** for this monorepo are merged under [`../firecrawl-skills`](../firecrawl-skills) (official vendored + fork overlay). Install once:
+
+```bash
+npx skills add ./firecrawl-skills
+```

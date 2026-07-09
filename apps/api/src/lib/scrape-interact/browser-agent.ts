@@ -3,7 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { tool, stepCountIs } from "ai";
 import { logger as _logger } from "../logger";
-import { getModel } from "../generic-ai";
+import { getModelExact } from "../generic-ai";
 import {
   browserServiceRequest,
   BrowserServiceExecResponse,
@@ -354,7 +354,7 @@ export async function executePromptViaBrowserAgent(
 
   try {
     const result = await generateText({
-      model: getModel("gemini-3.5-flash", "google"),
+      model: getModelExact("gemini-3.5-flash", "google"),
       system: SYSTEM_PROMPT,
       messages: [
         {

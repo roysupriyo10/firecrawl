@@ -576,6 +576,44 @@ export class BrandingNotSupportedError extends TransportableError {
   }
 }
 
+export class ScreenshotFailedError extends TransportableError {
+  constructor(message: string) {
+    super("SCRAPE_SCREENSHOT_FAILED", message);
+  }
+
+  serialize() {
+    return super.serialize();
+  }
+
+  static deserialize(
+    _: ErrorCodes,
+    data: ReturnType<typeof this.prototype.serialize>,
+  ) {
+    const x = new ScreenshotFailedError(data.message);
+    x.stack = data.stack;
+    return x;
+  }
+}
+
+export class BrandingFailedError extends TransportableError {
+  constructor(message: string) {
+    super("SCRAPE_BRANDING_FAILED", message);
+  }
+
+  serialize() {
+    return super.serialize();
+  }
+
+  static deserialize(
+    _: ErrorCodes,
+    data: ReturnType<typeof this.prototype.serialize>,
+  ) {
+    const x = new BrandingFailedError(data.message);
+    x.stack = data.stack;
+    return x;
+  }
+}
+
 export class FEPageLoadFailed extends Error {
   constructor() {
     super(

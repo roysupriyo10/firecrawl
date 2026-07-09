@@ -1,0 +1,26 @@
+{
+  "name": "firecrawl-selfhost",
+  "displayName": "Firecrawl (roysupriyo10 fork)",
+  "description": "Official Firecrawl build skills (vendored) plus self-host Playwright, MODEL_PROVIDER, and GHCR deploy skills for this monorepo.",
+  "version": "0.2.0",
+  "author": {
+    "name": "roysupriyo10",
+    "url": "https://github.com/roysupriyo10/firecrawl"
+  },
+  "homepage": "https://github.com/roysupriyo10/firecrawl/tree/main/firecrawl-skills",
+  "repository": "https://github.com/roysupriyo10/firecrawl",
+  "license": "ISC",
+  "keywords": ["firecrawl", "self-host", "scrape", "search", "playwright", "ghcr"],
+  "skills": [
+    "./skills/firecrawl-build",
+    "./skills/firecrawl-build-onboarding",
+    "./skills/firecrawl-build-scrape",
+    "./skills/firecrawl-build-search",
+    "./skills/firecrawl-build-interact",
+    "./skills/firecrawl-research-index",
+    "./skills/firecrawl-selfhost",
+    "./skills/firecrawl-selfhost-scrape",
+    "./skills/firecrawl-selfhost-llm",
+    "./skills/firecrawl-selfhost-deploy"
+  ]
+}

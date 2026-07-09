@@ -182,6 +182,11 @@ interface UrlModel {
   headers?: { [key: string]: string };
   check_selector?: string;
   skip_tls_verification?: boolean;
+  screenshot?: boolean;
+  full_page_screenshot?: boolean;
+  viewport?: { width: number; height: number };
+  screenshot_quality?: number;
+  execute_javascript?: string;
 }
 
 let browser: Browser;
@@ -204,12 +209,16 @@ const initializeBrowser = async () => {
 const createContext = async (
   skipTlsVerification: boolean = false,
   userAgentOverride?: string,
+  options: {
+    viewport?: { width: number; height: number };
+    blockMedia?: boolean;
+  } = {},
 ): Promise<{
   context: BrowserContext;
   securityState: ContextSecurityState;
 }> => {
   const userAgent = userAgentOverride || new UserAgent().toString();
-  const viewport = { width: 1280, height: 800 };
+  const viewport = options.viewport ?? { width: 1280, height: 800 };
   const securityState: ContextSecurityState = {
     blockedNavigationRequestUrl: null,
   };
@@ -227,7 +236,8 @@ const createContext = async (
 
   const newContext = await browser.newContext(contextOptions);
 
-  if (BLOCK_MEDIA) {
+  const shouldBlockMedia = options.blockMedia ?? BLOCK_MEDIA;
+  if (shouldBlockMedia) {
     await newContext.route(
       '**/*.{png,jpg,jpeg,gif,svg,mp3,mp4,avi,flac,ogg,wav,webm}',
       async (route: Route, request: PlaywrightRequest) => {
@@ -377,6 +387,11 @@ app.post('/scrape', async (req: Request, res: Response) => {
     headers,
     check_selector,
     skip_tls_verification = false,
+    screenshot = false,
+    full_page_screenshot = false,
+    viewport,
+    screenshot_quality,
+    execute_javascript,
   }: UrlModel = req.body;
 
   console.log(`================= Scrape Request =================`);
@@ -386,6 +401,9 @@ app.post('/scrape', async (req: Request, res: Response) => {
   console.log(`Headers: ${headers ? JSON.stringify(headers) : 'None'}`);
   console.log(`Check Selector: ${check_selector ? check_selector : 'None'}`);
   console.log(`Skip TLS Verification: ${skip_tls_verification}`);
+  console.log(`Screenshot: ${screenshot}`);
+  console.log(`Full Page Screenshot: ${full_page_screenshot}`);
+  console.log(`Execute Javascript: ${execute_javascript ? 'yes' : 'no'}`);
   console.log(`==================================================`);
 
   if (!url) {
@@ -435,9 +453,15 @@ app.post('/scrape', async (req: Request, res: Response) => {
         )?.[1]
       : undefined;
 
+    // Screenshots / branding need images and stylesheets loaded.
+    const needsVisualAssets = screenshot || !!execute_javascript;
     const contextBundle = await createContext(
       skip_tls_verification,
       userAgentOverride,
+      {
+        viewport,
+        blockMedia: needsVisualAssets ? false : undefined,
+      },
     );
     requestContext = contextBundle.context;
     securityState = contextBundle.securityState;
@@ -533,11 +557,65 @@ app.post('/scrape', async (req: Request, res: Response) => {
       );
     }
 
+    let javascript_return:
+      | { type: string; value: unknown }
+      | undefined;
+    if (execute_javascript) {
+      try {
+        const value = await page.evaluate(execute_javascript);
+        javascript_return = {
+          type: typeof value === 'object' && value !== null ? 'object' : typeof value,
+          value,
+        };
+      } catch (error) {
+        console.error('execute_javascript failed:', error);
+        return res.status(500).json({
+          error:
+            error instanceof Error
+              ? `execute_javascript failed: ${error.message}`
+              : 'execute_javascript failed',
+        });
+      }
+    }
+
+    let screenshotDataUrl: string | undefined;
+    if (screenshot) {
+      try {
+        const useJpeg =
+          typeof screenshot_quality === 'number' &&
+          Number.isFinite(screenshot_quality);
+        const buffer = await page.screenshot({
+          fullPage: !!full_page_screenshot,
+          type: useJpeg ? 'jpeg' : 'png',
+          ...(useJpeg
+            ? {
+                quality: Math.min(
+                  100,
+                  Math.max(1, Math.round(screenshot_quality!)),
+                ),
+              }
+            : {}),
+        });
+        const mime = useJpeg ? 'image/jpeg' : 'image/png';
+        screenshotDataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
+      } catch (error) {
+        console.error('screenshot failed:', error);
+        return res.status(500).json({
+          error:
+            error instanceof Error
+              ? `screenshot failed: ${error.message}`
+              : 'screenshot failed',
+        });
+      }
+    }
+
     res.json({
       content: result.content,
       pageStatusCode: result.status,
       contentType: result.contentType,
       ...(pageError && { pageError }),
+      ...(screenshotDataUrl && { screenshot: screenshotDataUrl }),
+      ...(javascript_return && { javascript_return }),
     });
   } catch (error) {
     if (error instanceof InsecureConnectionError) {

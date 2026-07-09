@@ -1,7 +1,7 @@
 import { generateText } from "ai";
 import { Document, FormatObject } from "../../../controllers/v2/types";
 import { Meta } from "..";
-import { getModel } from "../../../lib/generic-ai";
+import { getModelExact } from "../../../lib/generic-ai";
 import { hasFormatOfType } from "../../../lib/format-utils";
 import { calculateCost } from "./llmExtract";
 import {
@@ -51,7 +51,7 @@ ${escapePromptTags(indexedLines)}
 </lines>`;
 
   const modelName = DIRECT_QUOTE_MODEL.id;
-  const model = getModel(modelName, DIRECT_QUOTE_MODEL.provider);
+  const model = getModelExact(modelName, DIRECT_QUOTE_MODEL.provider);
 
   const start = Date.now();
   try {
@@ -135,15 +135,15 @@ ${escapePromptTags(markdown)}
   const modelChain = [
     {
       name: "gemini-2.5-flash-lite",
-      model: getModel("gemini-2.5-flash-lite", "google"),
+      model: getModelExact("gemini-2.5-flash-lite", "google"),
     },
     {
       name: "gpt-4o-mini",
-      model: getModel("gpt-4o-mini", "openai"),
+      model: getModelExact("gpt-4o-mini", "openai"),
     },
     {
       name: "gemini-2.5-flash-lite",
-      model: getModel("gemini-2.5-flash-lite", "vertex"),
+      model: getModelExact("gemini-2.5-flash-lite", "vertex"),
     },
   ];
 

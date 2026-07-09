@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import { jsonrepair } from "jsonrepair";
-import { getModel } from "../../generic-ai";
+import { getModelExact } from "../../generic-ai";
 import { CostTracking } from "../../cost-tracking";
 import {
   ANCHOR_MODEL,
@@ -57,7 +57,7 @@ export async function generateCode(
   let res;
   try {
     res = await generateText({
-      model: getModel(CODEGEN_MODEL, "vertex"),
+      model: getModelExact(CODEGEN_MODEL, "vertex"),
       messages,
       temperature: 1.0, // even though it would be nice to have more deterministic output, google recommends keeping this at 1 for complex tasks
       maxOutputTokens: CODEGEN_MAX_TOKENS,
@@ -76,7 +76,7 @@ export async function pickSnippets(
   let res;
   try {
     res = await generateText({
-      model: getModel(ANCHOR_MODEL, "groq"),
+      model: getModelExact(ANCHOR_MODEL, "groq"),
       messages,
       temperature: 0,
       maxOutputTokens: ANCHOR_PICKER_MAX_TOKENS,
@@ -207,7 +207,7 @@ export function makeAskLlm(
       let raw = "";
       try {
         const res = await generateText({
-          model: getModel(LIGHT_MODEL, "groq"),
+          model: getModelExact(LIGHT_MODEL, "groq"),
           temperature: 0,
           maxOutputTokens: ASK_LLM_MAX_TOKENS,
           messages: [

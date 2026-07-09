@@ -29,6 +29,10 @@ import { hasFormatOfType } from "../../../lib/format-utils";
 import { brandingTransformer } from "../../../lib/branding/transformer";
 import { indexerQueue } from "../../../services/indexing/indexer-queue";
 import { config } from "../../../config";
+import {
+  BrandingFailedError,
+  ScreenshotFailedError,
+} from "../error";
 
 type Transformer = (
   meta: Meta,
@@ -294,14 +298,17 @@ async function deriveBrandingFromActions(
 
   /**
    * Find the branding return in the actions javascript returns
-   * @see src/scraper/scrapeURL/engines/fire-engine/scripts/branding.js
+   * @see src/scraper/scrapeURL/engines/fire-engine/branding-script/index.ts
+   * @see src/scraper/scrapeURL/engines/playwright/index.ts
    */
   const brandingReturnIndex = document.actions?.javascriptReturns?.findIndex(
     x => x.type === "object" && "branding" in (x.value as any),
   );
 
   if (brandingReturnIndex === -1 || brandingReturnIndex === undefined) {
-    return document;
+    throw new BrandingFailedError(
+      "Branding was requested but no branding extraction data was returned by the engine.",
+    );
   }
 
   // cast as any since this is js return, we might need to validate this
@@ -310,6 +317,11 @@ async function deriveBrandingFromActions(
   ].value as any;
 
   const rawBranding = javascriptReturn?.branding;
+  if (rawBranding == null) {
+    throw new BrandingFailedError(
+      "Branding was requested but the engine returned an empty branding payload.",
+    );
+  }
 
   document.actions!.javascriptReturns!.splice(brandingReturnIndex, 1);
 
@@ -400,7 +412,7 @@ function coerceFieldsToFormats(meta: Meta, document: Document): Document {
     );
     delete document.screenshot;
   } else if (hasScreenshot && document.screenshot === undefined) {
-    meta.logger.warn(
+    throw new ScreenshotFailedError(
       "Request had format: screenshot / screenshot@fullPage, but there was no screenshot field in the result.",
     );
   }
@@ -511,7 +523,7 @@ function coerceFieldsToFormats(meta: Meta, document: Document): Document {
     );
     delete document.branding;
   } else if (hasBranding && document.branding === undefined) {
-    meta.logger.warn(
+    throw new BrandingFailedError(
       "Request had format branding, but there was no branding field in the result.",
     );
   }

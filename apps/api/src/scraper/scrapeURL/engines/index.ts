@@ -381,8 +381,8 @@ const engineOptions: {
     features: {
       actions: false,
       waitFor: true,
-      screenshot: false,
-      "screenshot@fullScreen": false,
+      screenshot: true,
+      "screenshot@fullScreen": true,
       pdf: false,
       document: false,
       audio: false,
@@ -393,7 +393,7 @@ const engineOptions: {
       skipTlsVerification: true,
       useFastMode: false,
       stealthProxy: false,
-      branding: false,
+      branding: true,
       disableAdblock: false,
     },
     quality: 20,
@@ -776,7 +776,7 @@ export async function buildFallbackList(meta: Meta): Promise<
         );
       }
       throw new BrandingNotSupportedError(
-        "Branding extraction requires Chrome CDP (fire-engine).",
+        "Branding extraction requires a Chrome CDP-capable engine (Playwright or fire-engine).",
       );
     }
   }

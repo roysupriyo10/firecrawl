@@ -53,6 +53,8 @@ import {
   ProxySelectionError,
   ScrapeRetryLimitError,
   BrandingNotSupportedError,
+  BrandingFailedError,
+  ScreenshotFailedError,
   XTwitterConfigurationError,
 } from "./error";
 import { ScrapeRetryTracker } from "./retryTracker";
@@ -1517,6 +1519,12 @@ export async function scrapeURL(
         meta.logger.warn("scrapeURL: Branding not supported for this content", {
           error,
         });
+      } else if (error instanceof BrandingFailedError) {
+        errorType = "BrandingFailedError";
+        meta.logger.warn("scrapeURL: Branding extraction failed", { error });
+      } else if (error instanceof ScreenshotFailedError) {
+        errorType = "ScreenshotFailedError";
+        meta.logger.warn("scrapeURL: Screenshot capture failed", { error });
       } else if (error instanceof ProxySelectionError) {
         errorType = "ProxySelectionError";
         meta.logger.warn("scrapeURL: Proxy selection error", { error });

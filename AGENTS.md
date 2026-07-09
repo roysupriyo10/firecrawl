@@ -1,6 +1,13 @@
 Firecrawl is a web scraper API. The directory you have access to is a monorepo:
  - `apps/api` has the actual API and worker code
  - `apps/*-sdk` are various SDKs
+ - `apps/playwright-service-ts` is the self-host browser engine (screenshots + branding CDP when fire-engine is unavailable)
+
+Self-host notes:
+ - Screenshot / branding formats use Playwright when `PLAYWRIGHT_MICROSERVICE_URL` is set and fire-engine is not. Missing fields must fail the scrape (`SCRAPE_SCREENSHOT_FAILED` / `SCRAPE_BRANDING_FAILED`), not warn-only success.
+ - LLM extract uses `getModel()`; set `MODEL_PROVIDER` + `MODEL_NAME` to switch providers. Use `getModelExact()` only for intentional multi-provider specialty paths.
+ - See `SELF_HOST.md` for the env template.
+ - Agent skills for this fork live in `firecrawl-skills/` (install: `npx skills add ./firecrawl-skills`). Keep them updated when self-host behavior changes.
 
 When making changes to the API, here are the general steps you should take:
 1. Write some end-to-end tests that assert your win conditions, if they don't already exist
