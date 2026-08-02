@@ -9,6 +9,7 @@
 #   ./scripts/deploy-selfhost.sh pull-up      # pull+up only (other machines)
 #   ./scripts/deploy-selfhost.sh build-push   # build+push only (builder machine)
 #   ./scripts/deploy-selfhost.sh up           # up only (images already local)
+#   ./scripts/deploy-selfhost.sh down         # down (volumes kept; alias: stop)
 #   ./scripts/deploy-selfhost.sh status
 #
 # Env (from .env.deploy / .env / environment):
@@ -247,6 +248,11 @@ compose_up() {
   "${COMPOSE_BASE[@]}" "${up_args[@]}"
 }
 
+compose_down() {
+  log "compose down (volumes kept)"
+  "${COMPOSE_BASE[@]}" down --remove-orphans
+}
+
 show_status() {
   log "registry=$REGISTRY tag=$TAG"
   "${COMPOSE_BASE[@]}" ps
@@ -274,6 +280,10 @@ case "$CMD" in
     compose_up
     show_status
     ;;
+  down|stop)
+    compose_down
+    show_status
+    ;;
   status|ps)
     show_status
     ;;
@@ -281,10 +291,10 @@ case "$CMD" in
     ensure_login
     ;;
   -h|--help|help)
-    sed -n '2,25p' "$0"
+    sed -n '2,26p' "$0"
     ;;
   *)
-    die "unknown command: $CMD (try: all | build-push | pull-up | up | status | login)"
+    die "unknown command: $CMD (try: all | build-push | pull-up | up | down | status | login)"
     ;;
 esac
 

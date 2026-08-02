@@ -53,6 +53,7 @@ gh auth refresh -h github.com -s read:packages,write:packages
 ./scripts/deploy-selfhost.sh              # build+push+pull+up
 ./scripts/deploy-selfhost.sh pull-up      # other machines
 ./scripts/deploy-selfhost.sh build-push   # builder only
+./scripts/deploy-selfhost.sh down         # stop stack (volumes kept; alias: stop)
 ./scripts/deploy-selfhost.sh status
 ```
 
