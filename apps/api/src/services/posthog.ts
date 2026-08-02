@@ -65,8 +65,8 @@ type RequestSurface =
  * (`*-sdk@ver`, `api-sdk`), MCP (`mcp` / `mcp-fastmcp`), playground (`website`),
  * and `monitor`. The CLI is the exception: it sets `integration: "cli"` on every
  * command but leaves `origin` at the "api" default on its high-volume commands
- * (scrape/crawl/search/map/agent/parse/browser) — only feedback/interact/
- * search-feedback also set `origin: "cli"`. So CLI must be detected via
+ * (scrape/crawl/search/map/agent/parse/browser) — only interact also sets
+ * `origin: "cli"`. So CLI must be detected via
  * `integration`, or the bulk of CLI traffic is miscounted as `api`. (Verified
  * against firecrawl/cli.)
  */

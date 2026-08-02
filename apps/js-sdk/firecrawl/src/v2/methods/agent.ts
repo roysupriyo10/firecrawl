@@ -1,7 +1,18 @@
-import { type AgentResponse, type AgentStatusResponse, type AgentWebhookConfig, type ThreatProtectionOptions } from "../types";
+import {
+  type AgentResponse,
+  type AgentStatusResponse,
+  type AgentWebhookConfig,
+  type ThreatProtectionOptions,
+} from "../types";
 import { HttpClient } from "../utils/httpClient";
-import { normalizeAxiosError, throwForBadResponse } from "../utils/errorHandler";
-import { isZodSchema, zodSchemaToJsonSchema } from "../../utils/zodSchemaToJson";
+import {
+  normalizeAxiosError,
+  throwForBadResponse,
+} from "../utils/errorHandler";
+import {
+  isZodSchema,
+  zodSchemaToJsonSchema,
+} from "../../utils/zodSchemaToJson";
 import type { ZodTypeAny } from "zod";
 
 function prepareAgentPayload(args: {
@@ -20,12 +31,20 @@ function prepareAgentPayload(args: {
   if (args.urls) body.urls = args.urls;
   body.prompt = args.prompt;
   if (args.schema != null) {
-    body.schema = isZodSchema(args.schema) ? zodSchemaToJsonSchema(args.schema) : args.schema;
+    body.schema = isZodSchema(args.schema)
+      ? zodSchemaToJsonSchema(args.schema)
+      : args.schema;
   }
-  if (args.integration && args.integration.trim()) body.integration = args.integration.trim();
+  if (args.integration && args.integration.trim())
+    body.integration = args.integration.trim();
   if (args.origin) body.origin = args.origin;
-  if (args.maxCredits !== null && args.maxCredits !== undefined) body.maxCredits = args.maxCredits;
-  if (args.strictConstrainToURLs !== null && args.strictConstrainToURLs !== undefined) body.strictConstrainToURLs = args.strictConstrainToURLs;
+  if (args.maxCredits !== null && args.maxCredits !== undefined)
+    body.maxCredits = args.maxCredits;
+  if (
+    args.strictConstrainToURLs !== null &&
+    args.strictConstrainToURLs !== undefined
+  )
+    body.strictConstrainToURLs = args.strictConstrainToURLs;
   if (args.model !== null && args.model !== undefined) body.model = args.model;
   if (args.webhook != null) body.webhook = args.webhook;
   if (args.threatProtection != null)
@@ -33,7 +52,10 @@ function prepareAgentPayload(args: {
   return body;
 }
 
-export async function startAgent(http: HttpClient, args: Parameters<typeof prepareAgentPayload>[0]): Promise<AgentResponse> {
+export async function startAgent(
+  http: HttpClient,
+  args: Parameters<typeof prepareAgentPayload>[0],
+): Promise<AgentResponse> {
   const payload = prepareAgentPayload(args);
   try {
     const res = await http.post<AgentResponse>("/v2/agent", payload);
@@ -45,7 +67,10 @@ export async function startAgent(http: HttpClient, args: Parameters<typeof prepa
   }
 }
 
-export async function getAgentStatus(http: HttpClient, jobId: string): Promise<AgentStatusResponse> {
+export async function getAgentStatus(
+  http: HttpClient,
+  jobId: string,
+): Promise<AgentStatusResponse> {
   try {
     const res = await http.get<AgentStatusResponse>(`/v2/agent/${jobId}`);
     if (res.status !== 200) throwForBadResponse(res, "agent status");
@@ -60,20 +85,24 @@ export async function waitAgent(
   http: HttpClient,
   jobId: string,
   pollInterval = 2,
-  timeout?: number
+  timeout?: number,
 ): Promise<AgentStatusResponse> {
   const start = Date.now();
   while (true) {
     const status = await getAgentStatus(http, jobId);
-    if (["completed", "failed", "cancelled"].includes(status.status || "")) return status;
+    if (["completed", "failed", "cancelled"].includes(status.status || ""))
+      return status;
     if (timeout != null && Date.now() - start > timeout * 1000) return status;
-    await new Promise((r) => setTimeout(r, Math.max(1000, pollInterval * 1000)));
+    await new Promise(r => setTimeout(r, Math.max(1000, pollInterval * 1000)));
   }
 }
 
 export async function agent(
   http: HttpClient,
-  args: Parameters<typeof prepareAgentPayload>[0] & { pollInterval?: number; timeout?: number }
+  args: Parameters<typeof prepareAgentPayload>[0] & {
+    pollInterval?: number;
+    timeout?: number;
+  },
 ): Promise<AgentStatusResponse> {
   const started = await startAgent(http, args);
   const jobId = started.id;
@@ -81,7 +110,10 @@ export async function agent(
   return waitAgent(http, jobId, args.pollInterval ?? 2, args.timeout);
 }
 
-export async function cancelAgent(http: HttpClient, jobId: string): Promise<boolean> {
+export async function cancelAgent(
+  http: HttpClient,
+  jobId: string,
+): Promise<boolean> {
   try {
     const res = await http.delete<{ success: boolean }>(`/v2/agent/${jobId}`);
     if (res.status !== 200) throwForBadResponse(res, "cancel agent");

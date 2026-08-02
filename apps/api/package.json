@@ -10,6 +10,7 @@
     "server:production": "tsc && node dist/src/index.js",
     "server:production:nobuild": "node dist/src/index.js",
     "format": "prettier --write \"src/**/*.(js|ts)\"",
+    "format:check": "prettier --check \"src/**/*.(js|ts)\"",
     "flyio": "node dist/src/index.js",
     "start:dev": "tsc-watch --compiler ./node_modules/typescript-7/bin/tsc --onSuccess \"node dist/src/index.js\"",
     "build": "tsc",

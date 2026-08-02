@@ -18,16 +18,25 @@ export function isZodSchema(value: unknown): boolean {
 
 function isZodV4Schema(schema: unknown): boolean {
   if (!schema || typeof schema !== "object") return false;
-  return "_zod" in schema && typeof (schema as Record<string, unknown>)._zod === "object";
+  return (
+    "_zod" in schema &&
+    typeof (schema as Record<string, unknown>)._zod === "object"
+  );
 }
 
 function tryZodV4Conversion(schema: unknown): Record<string, unknown> | null {
   if (!isZodV4Schema(schema)) return null;
 
   try {
-    const zodModule = (schema as Record<string, unknown>).constructor?.prototype?.constructor;
-    if (zodModule && typeof (zodModule as Record<string, unknown>).toJSONSchema === "function") {
-      return (zodModule as { toJSONSchema: SchemaConverter }).toJSONSchema(schema) as Record<string, unknown>;
+    const zodModule = (schema as Record<string, unknown>).constructor?.prototype
+      ?.constructor;
+    if (
+      zodModule &&
+      typeof (zodModule as Record<string, unknown>).toJSONSchema === "function"
+    ) {
+      return (zodModule as { toJSONSchema: SchemaConverter }).toJSONSchema(
+        schema,
+      ) as Record<string, unknown>;
     }
   } catch {
     // V4 conversion not available
@@ -36,7 +45,9 @@ function tryZodV4Conversion(schema: unknown): Record<string, unknown> | null {
   return null;
 }
 
-export function zodSchemaToJsonSchema(schema: unknown): Record<string, unknown> | unknown {
+export function zodSchemaToJsonSchema(
+  schema: unknown,
+): Record<string, unknown> | unknown {
   if (!isZodSchema(schema)) {
     return schema;
   }
@@ -47,7 +58,9 @@ export function zodSchemaToJsonSchema(schema: unknown): Record<string, unknown> 
   }
 
   try {
-    return zodToJsonSchemaLib(schema as Parameters<typeof zodToJsonSchemaLib>[0]) as Record<string, unknown>;
+    return zodToJsonSchemaLib(
+      schema as Parameters<typeof zodToJsonSchemaLib>[0],
+    ) as Record<string, unknown>;
   } catch {
     return schema;
   }
@@ -58,10 +71,10 @@ export function looksLikeZodShape(obj: unknown): boolean {
   const values = Object.values(obj);
   if (values.length === 0) return false;
   return values.some(
-    (v) =>
+    v =>
       v &&
       typeof v === "object" &&
       (v as Record<string, unknown>)._def &&
-      typeof (v as Record<string, unknown>).safeParse === "function"
+      typeof (v as Record<string, unknown>).safeParse === "function",
   );
 }

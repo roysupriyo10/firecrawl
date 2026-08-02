@@ -18,11 +18,12 @@ beforeAll(async () => {
 
 describe("v2.batch e2e", () => {
   test("batch scrape minimal (wait)", async () => {
-    const urls = [
-      "https://docs.firecrawl.dev",
-      "https://firecrawl.dev",
-    ];
-    const job = await client.batchScrape(urls, { options: { formats: ["markdown"] }, pollInterval: 1, timeout: 180 });
+    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"];
+    const job = await client.batchScrape(urls, {
+      options: { formats: ["markdown"] },
+      pollInterval: 1,
+      timeout: 180,
+    });
     expect(["completed", "failed"]).toContain(job.status);
     expect(job.completed).toBeGreaterThanOrEqual(0);
     expect(job.total).toBeGreaterThanOrEqual(0);
@@ -30,11 +31,12 @@ describe("v2.batch e2e", () => {
   }, 240_000);
 
   test("batch scrape with wait returns job id for error retrieval", async () => {
-    const urls = [
-      "https://docs.firecrawl.dev",
-      "https://firecrawl.dev",
-    ];
-    const job = await client.batchScrape(urls, { options: { formats: ["markdown"] }, pollInterval: 1, timeout: 180 });
+    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"];
+    const job = await client.batchScrape(urls, {
+      options: { formats: ["markdown"] },
+      pollInterval: 1,
+      timeout: 180,
+    });
     // Verify job has id field
     expect(job.id).toBeDefined();
     expect(typeof job.id).toBe("string");
@@ -47,12 +49,17 @@ describe("v2.batch e2e", () => {
   }, 240_000);
 
   test("start batch minimal and status", async () => {
-    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"]; 
-    const start = await client.startBatchScrape(urls, { options: { formats: ["markdown"] }, ignoreInvalidURLs: true });
+    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"];
+    const start = await client.startBatchScrape(urls, {
+      options: { formats: ["markdown"] },
+      ignoreInvalidURLs: true,
+    });
     expect(typeof start.id).toBe("string");
     expect(typeof start.url).toBe("string");
     const status = await client.getBatchScrapeStatus(start.id);
-    expect(["scraping", "completed", "failed", "cancelled"]).toContain(status.status);
+    expect(["scraping", "completed", "failed", "cancelled"]).toContain(
+      status.status,
+    );
     expect(status.total).toBeGreaterThanOrEqual(0);
     // Verify status includes id field
     expect(status.id).toBeDefined();
@@ -60,12 +67,20 @@ describe("v2.batch e2e", () => {
   }, 120_000);
 
   test("wait batch with all params", async () => {
-    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"]; 
+    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"];
     const job = await client.batchScrape(urls, {
       options: {
         formats: [
           "markdown",
-          { type: "json", prompt: "Extract page title", schema: { type: "object", properties: { title: { type: "string" } }, required: ["title"] } },
+          {
+            type: "json",
+            prompt: "Extract page title",
+            schema: {
+              type: "object",
+              properties: { title: { type: "string" } },
+              required: ["title"],
+            },
+          },
           { type: "changeTracking", prompt: "Track changes", modes: ["json"] },
         ],
         onlyMainContent: true,
@@ -84,11 +99,13 @@ describe("v2.batch e2e", () => {
   }, 300_000);
 
   test("cancel batch", async () => {
-    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"]; 
-    const start = await client.startBatchScrape(urls, { options: { formats: ["markdown"] }, maxConcurrency: 1 });
+    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"];
+    const start = await client.startBatchScrape(urls, {
+      options: { formats: ["markdown"] },
+      maxConcurrency: 1,
+    });
     expect(typeof start.id).toBe("string");
     const cancelled = await client.cancelBatchScrape(start.id);
     expect(cancelled).toBe(true);
   }, 120_000);
 });
-

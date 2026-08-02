@@ -1,5 +1,8 @@
 import { describe, test, expect } from "@jest/globals";
-import { throwForBadResponse, normalizeAxiosError } from "../../../v2/utils/errorHandler";
+import {
+  throwForBadResponse,
+  normalizeAxiosError,
+} from "../../../v2/utils/errorHandler";
 
 describe("v2 utils: errorHandler", () => {
   test("throwForBadResponse: throws SdkError with message from body.error", () => {
@@ -13,7 +16,8 @@ describe("v2 utils: errorHandler", () => {
       response: { status: 402, data: { error: "payment required" } },
       message: "network",
     };
-    expect(() => normalizeAxiosError(err, "action")).toThrow(/payment required/);
+    expect(() => normalizeAxiosError(err, "action")).toThrow(
+      /payment required/,
+    );
   });
 });
-

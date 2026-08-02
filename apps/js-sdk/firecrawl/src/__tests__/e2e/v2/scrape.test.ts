@@ -18,10 +18,12 @@ beforeAll(async () => {
 });
 
 describe("v2.scrape e2e", () => {
-
   const assertValidDocument = (doc: any) => {
     expect(doc).toBeTruthy();
-    const hasContent = Boolean(doc.markdown?.length) || Boolean(doc.html?.length) || Boolean(doc.rawHtml?.length);
+    const hasContent =
+      Boolean(doc.markdown?.length) ||
+      Boolean(doc.html?.length) ||
+      Boolean(doc.rawHtml?.length);
     expect(hasContent).toBe(true);
     expect(doc.metadata).toBeTruthy();
   };
@@ -40,7 +42,12 @@ describe("v2.scrape e2e", () => {
         "html",
         "rawHtml",
         "links",
-        { type: "screenshot", fullPage: true, quality: 80, viewport: { width: 1280, height: 800 } },
+        {
+          type: "screenshot",
+          fullPage: true,
+          quality: 80,
+          viewport: { width: 1280, height: 800 },
+        },
         {
           type: "json",
           prompt: "Summarize the page and list links",
@@ -48,7 +55,10 @@ describe("v2.scrape e2e", () => {
             type: "object",
             properties: {
               summary: { type: "string" },
-              links: { type: "array", items: { type: "string", format: "uri" } },
+              links: {
+                type: "array",
+                items: { type: "string", format: "uri" },
+              },
             },
             required: ["summary"],
           },
@@ -94,7 +104,9 @@ describe("v2.scrape e2e", () => {
 
   test("summary format returns summary string", async () => {
     if (!client) throw new Error();
-    const doc = await client.scrape("https://firecrawl.dev", { formats: ["summary"] });
+    const doc = await client.scrape("https://firecrawl.dev", {
+      formats: ["summary"],
+    });
     expect(typeof doc.summary).toBe("string");
     expect((doc.summary || "").length).toBeGreaterThan(10);
   }, 90_000);
@@ -105,21 +117,27 @@ describe("v2.scrape e2e", () => {
     ["rawHtml", "rawHtml"],
     ["links", "links"],
     ["screenshot", "screenshot"],
-  ])("basic format: %s", async (fmt, expectField) => {
-    if (!client) throw new Error();
-    const doc = await client.scrape("https://docs.firecrawl.dev", { formats: [fmt as any] });
-    if (expectField !== "links" && expectField !== "screenshot") {
-      assertValidDocument(doc);
-    }
-    if (expectField === "markdown") expect(doc.markdown).toBeTruthy();
-    if (expectField === "html") expect(doc.html).toBeTruthy();
-    if (expectField === "rawHtml") expect(doc.rawHtml).toBeTruthy();
-    if (expectField === "screenshot") expect(doc.screenshot).toBeTruthy();
-    if (expectField === "links") {
-      expect(Array.isArray(doc.links)).toBe(true);
-      expect((doc.links || []).length).toBeGreaterThan(0);
-    }
-  }, 90_000);
+  ])(
+    "basic format: %s",
+    async (fmt, expectField) => {
+      if (!client) throw new Error();
+      const doc = await client.scrape("https://docs.firecrawl.dev", {
+        formats: [fmt as any],
+      });
+      if (expectField !== "links" && expectField !== "screenshot") {
+        assertValidDocument(doc);
+      }
+      if (expectField === "markdown") expect(doc.markdown).toBeTruthy();
+      if (expectField === "html") expect(doc.html).toBeTruthy();
+      if (expectField === "rawHtml") expect(doc.rawHtml).toBeTruthy();
+      if (expectField === "screenshot") expect(doc.screenshot).toBeTruthy();
+      if (expectField === "links") {
+        expect(Array.isArray(doc.links)).toBe(true);
+        expect((doc.links || []).length).toBeGreaterThan(0);
+      }
+    },
+    90_000,
+  );
 
   test("images format: extract all images from webpage", async () => {
     if (!client) throw new Error();
@@ -130,7 +148,11 @@ describe("v2.scrape e2e", () => {
     expect(Array.isArray(doc.images)).toBe(true);
     expect(doc.images?.length).toBeGreaterThan(0);
     // Should find firecrawl logo/branding images
-    expect(doc.images?.some(img => img.includes("firecrawl") || img.includes("logo"))).toBe(true);
+    expect(
+      doc.images?.some(
+        img => img.includes("firecrawl") || img.includes("logo"),
+      ),
+    ).toBe(true);
   }, 60_000);
 
   test("images format: works with multiple formats", async () => {
@@ -143,13 +165,22 @@ describe("v2.scrape e2e", () => {
     expect(doc.images).toBeTruthy();
     expect(Array.isArray(doc.images)).toBe(true);
     expect(doc.images?.length).toBeGreaterThan(0);
-    
+
     // Images should find things not available in links format
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico'];
-    const linkImages = doc.links?.filter(link => 
-      imageExtensions.some(ext => link.toLowerCase().includes(ext))
-    ) || [];
-    
+    const imageExtensions = [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".webp",
+      ".svg",
+      ".ico",
+    ];
+    const linkImages =
+      doc.links?.filter(link =>
+        imageExtensions.some(ext => link.toLowerCase().includes(ext)),
+      ) || [];
+
     // Should discover additional images beyond those with obvious extensions
     expect(doc.images?.length).toBeGreaterThanOrEqual(linkImages.length);
   }, 60_000);
@@ -160,4 +191,3 @@ describe("v2.scrape e2e", () => {
     await expect(client.scrape("   ")).rejects.toThrow("URL cannot be empty");
   });
 });
-

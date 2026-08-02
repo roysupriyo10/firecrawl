@@ -17,7 +17,11 @@ export { ResearchClient } from "./v2/methods/research";
 export { default as FirecrawlAppV1 } from "./v1";
 
 import V1 from "./v1";
-import { FirecrawlClient as V2, type FirecrawlClientOptions, type FirecrawlClientInput } from "./v2/client";
+import {
+  FirecrawlClient as V2,
+  type FirecrawlClientOptions,
+  type FirecrawlClientInput,
+} from "./v2/client";
 import type { FirecrawlAppConfig } from "./v1";
 
 // Re-export v2 client options for convenience
@@ -52,11 +56,11 @@ export class Firecrawl extends V2 {
 (function exposeV2MethodsOnTopLevel() {
   for (const name of Object.getOwnPropertyNames(V2.prototype)) {
     if (name === "constructor") continue;
-    if (Object.prototype.hasOwnProperty.call(Firecrawl.prototype, name)) continue;
+    if (Object.prototype.hasOwnProperty.call(Firecrawl.prototype, name))
+      continue;
     const desc = Object.getOwnPropertyDescriptor(V2.prototype, name);
     if (desc) Object.defineProperty(Firecrawl.prototype, name, desc);
   }
 })();
 
 export default Firecrawl;
-

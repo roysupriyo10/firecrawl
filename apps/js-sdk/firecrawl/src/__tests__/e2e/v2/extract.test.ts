@@ -19,8 +19,13 @@ beforeAll(async () => {
 
 describe("v2.extract e2e", () => {
   test("extract minimal with prompt", async () => {
-    const resp = await client.extract({ urls: ["https://docs.firecrawl.dev"], prompt: "Extract the main page title" });
-    expect(typeof resp.success === "boolean" || resp.success == null).toBe(true);
+    const resp = await client.extract({
+      urls: ["https://docs.firecrawl.dev"],
+      prompt: "Extract the main page title",
+    });
+    expect(typeof resp.success === "boolean" || resp.success == null).toBe(
+      true,
+    );
   }, 120_000);
 
   test("extract with schema", async () => {
@@ -36,7 +41,9 @@ describe("v2.extract e2e", () => {
       showSources: true,
       enableWebSearch: false,
     });
-    expect(typeof resp.success === "boolean" || resp.success == null).toBe(true);
+    expect(typeof resp.success === "boolean" || resp.success == null).toBe(
+      true,
+    );
     if ((resp as any).sources != null) {
       expect(typeof (resp as any).sources).toBe("object");
     }
@@ -57,7 +64,9 @@ describe("v2.extract e2e", () => {
       showSources: true,
       enableWebSearch: false,
     });
-    expect(typeof resp.success === "boolean" || resp.success == null).toBe(true);
+    expect(typeof resp.success === "boolean" || resp.success == null).toBe(
+      true,
+    );
     if ((resp as any).sources != null) {
       expect(typeof (resp as any).sources).toBe("object");
     }
@@ -67,4 +76,3 @@ describe("v2.extract e2e", () => {
     }
   }, 180_000);
 });
-

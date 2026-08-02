@@ -9,7 +9,7 @@ import { createFireworks } from "@ai-sdk/fireworks";
 import { createDeepInfra } from "@ai-sdk/deepinfra";
 import { createVertex } from "@ai-sdk/google-vertex";
 
-export type Provider =
+type Provider =
   | "openai"
   | "ollama"
   | "anthropic"

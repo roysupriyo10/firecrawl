@@ -10,21 +10,29 @@ import {
   type ScrapeOptions,
   type ScreenshotFormat,
 } from "../types";
-import { isZodSchema, zodSchemaToJsonSchema, looksLikeZodShape } from "../../utils/zodSchemaToJson";
+import {
+  isZodSchema,
+  zodSchemaToJsonSchema,
+  looksLikeZodShape,
+} from "../../utils/zodSchemaToJson";
 
 export function ensureValidFormats(formats?: FormatOption[]): void {
   if (!formats) return;
   for (const fmt of formats) {
     if (typeof fmt === "string") {
       if (fmt === "json") {
-        throw new Error("json format must be an object with { type: 'json', prompt, schema }");
+        throw new Error(
+          "json format must be an object with { type: 'json', prompt, schema }",
+        );
       }
       continue;
     }
     if ((fmt as JsonFormat).type === "json") {
       const j = fmt as JsonFormat;
       if (!j.prompt && !j.schema) {
-        throw new Error("json format requires either 'prompt' or 'schema' (or both)");
+        throw new Error(
+          "json format requires either 'prompt' or 'schema' (or both)",
+        );
       }
       const maybeSchema = j.schema;
       if (isZodSchema(maybeSchema)) {
@@ -32,8 +40,8 @@ export function ensureValidFormats(formats?: FormatOption[]): void {
       } else if (looksLikeZodShape(maybeSchema)) {
         throw new Error(
           "json format schema appears to be a Zod schema's .shape property. " +
-          "Pass the Zod schema directly (e.g., `schema: MySchema`) instead of `schema: MySchema.shape`. " +
-          "The SDK will automatically convert Zod schemas to JSON Schema format."
+            "Pass the Zod schema directly (e.g., `schema: MySchema`) instead of `schema: MySchema.shape`. " +
+            "The SDK will automatically convert Zod schemas to JSON Schema format.",
         );
       }
       continue;
@@ -46,8 +54,8 @@ export function ensureValidFormats(formats?: FormatOption[]): void {
       } else if (looksLikeZodShape(maybeSchema)) {
         throw new Error(
           "changeTracking format schema appears to be a Zod schema's .shape property. " +
-          "Pass the Zod schema directly (e.g., `schema: MySchema`) instead of `schema: MySchema.shape`. " +
-          "The SDK will automatically convert Zod schemas to JSON Schema format."
+            "Pass the Zod schema directly (e.g., `schema: MySchema`) instead of `schema: MySchema.shape`. " +
+            "The SDK will automatically convert Zod schemas to JSON Schema format.",
         );
       }
       continue;
@@ -55,14 +63,18 @@ export function ensureValidFormats(formats?: FormatOption[]): void {
     if ((fmt as QuestionFormat).type === "question") {
       const q = fmt as QuestionFormat;
       if (typeof q.question !== "string" || q.question.trim().length === 0) {
-        throw new Error("question format requires a non-empty 'question' string");
+        throw new Error(
+          "question format requires a non-empty 'question' string",
+        );
       }
       continue;
     }
     if ((fmt as HighlightsFormat).type === "highlights") {
       const h = fmt as HighlightsFormat;
       if (typeof h.query !== "string" || h.query.trim().length === 0) {
-        throw new Error("highlights format requires a non-empty 'query' string");
+        throw new Error(
+          "highlights format requires a non-empty 'query' string",
+        );
       }
       continue;
     }
@@ -72,14 +84,19 @@ export function ensureValidFormats(formats?: FormatOption[]): void {
         throw new Error("query format requires a non-empty 'prompt' string");
       }
       if (q.mode != null && q.mode !== "freeform" && q.mode !== "directQuote") {
-        throw new Error("query format mode must be 'freeform' or 'directQuote'");
+        throw new Error(
+          "query format mode must be 'freeform' or 'directQuote'",
+        );
       }
       continue;
     }
     if ((fmt as ScreenshotFormat).type === "screenshot") {
       // no-op; already camelCase; validate numeric fields if present
       const s = fmt as ScreenshotFormat;
-      if (s.quality != null && (typeof s.quality !== "number" || s.quality < 0)) {
+      if (
+        s.quality != null &&
+        (typeof s.quality !== "number" || s.quality < 0)
+      ) {
         throw new Error("screenshot.quality must be a non-negative number");
       }
     }
@@ -103,7 +120,9 @@ export function ensureValidParseFormats(formats?: ParseFormatOption[]): void {
   for (const fmt of formats) {
     if (typeof fmt === "string") {
       if (fmt === "json") {
-        throw new Error("json format must be an object with { type: 'json', prompt, schema }");
+        throw new Error(
+          "json format must be an object with { type: 'json', prompt, schema }",
+        );
       }
       if (fmt === "screenshot") {
         throw new Error("parse does not support screenshot format");
@@ -137,7 +156,9 @@ export function ensureValidParseFormats(formats?: ParseFormatOption[]): void {
     if ((fmt as JsonFormat).type === "json") {
       const j = fmt as JsonFormat;
       if (!j.prompt && !j.schema) {
-        throw new Error("json format requires either 'prompt' or 'schema' (or both)");
+        throw new Error(
+          "json format requires either 'prompt' or 'schema' (or both)",
+        );
       }
       const maybeSchema = j.schema;
       if (isZodSchema(maybeSchema)) {
@@ -145,8 +166,8 @@ export function ensureValidParseFormats(formats?: ParseFormatOption[]): void {
       } else if (looksLikeZodShape(maybeSchema)) {
         throw new Error(
           "json format schema appears to be a Zod schema's .shape property. " +
-          "Pass the Zod schema directly (e.g., `schema: MySchema`) instead of `schema: MySchema.shape`. " +
-          "The SDK will automatically convert Zod schemas to JSON Schema format."
+            "Pass the Zod schema directly (e.g., `schema: MySchema`) instead of `schema: MySchema.shape`. " +
+            "The SDK will automatically convert Zod schemas to JSON Schema format.",
         );
       }
       continue;
@@ -155,14 +176,18 @@ export function ensureValidParseFormats(formats?: ParseFormatOption[]): void {
     if ((fmt as QuestionFormat).type === "question") {
       const q = fmt as QuestionFormat;
       if (typeof q.question !== "string" || q.question.trim().length === 0) {
-        throw new Error("question format requires a non-empty 'question' string");
+        throw new Error(
+          "question format requires a non-empty 'question' string",
+        );
       }
       continue;
     }
     if ((fmt as HighlightsFormat).type === "highlights") {
       const h = fmt as HighlightsFormat;
       if (typeof h.query !== "string" || h.query.trim().length === 0) {
-        throw new Error("highlights format requires a non-empty 'query' string");
+        throw new Error(
+          "highlights format requires a non-empty 'query' string",
+        );
       }
       continue;
     }
@@ -172,7 +197,9 @@ export function ensureValidParseFormats(formats?: ParseFormatOption[]): void {
         throw new Error("query format requires a non-empty 'prompt' string");
       }
       if (q.mode != null && q.mode !== "freeform" && q.mode !== "directQuote") {
-        throw new Error("query format mode must be 'freeform' or 'directQuote'");
+        throw new Error(
+          "query format mode must be 'freeform' or 'directQuote'",
+        );
       }
     }
   }
@@ -205,10 +232,13 @@ export function ensureValidParseOptions(options?: ParseOptions): void {
   ) {
     throw new Error("parse does not support cache/index options");
   }
-  if (raw.proxy !== undefined && raw.proxy !== "basic" && raw.proxy !== "auto") {
+  if (
+    raw.proxy !== undefined &&
+    raw.proxy !== "basic" &&
+    raw.proxy !== "auto"
+  ) {
     throw new Error("parse only supports proxy values of 'basic' or 'auto'");
   }
 
   ensureValidParseFormats(options.formats);
 }
-

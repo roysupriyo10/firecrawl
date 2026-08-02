@@ -3,7 +3,11 @@ import { describe, it, expect, afterEach } from "vitest";
 import { config } from "../../../config";
 import { encryptSlackToken, decryptSlackToken } from "./crypto";
 import { verifySlackSignature } from "./signature";
-import { buildMonitorAlertMessage, escapeSlackText, slackLink } from "./messages";
+import {
+  buildMonitorAlertMessage,
+  escapeSlackText,
+  slackLink,
+} from "./messages";
 import { sanitizeRedirectPath } from "./redirect";
 
 const ORIGINAL_ENCRYPTION_KEY = config.SLACK_TOKEN_ENCRYPTION_KEY;
@@ -16,9 +20,7 @@ afterEach(() => {
 
 describe("slack token crypto", () => {
   it("round-trips a token with AES-256-GCM when a key is configured", () => {
-    config.SLACK_TOKEN_ENCRYPTION_KEY = crypto
-      .randomBytes(32)
-      .toString("hex");
+    config.SLACK_TOKEN_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
     // Opaque placeholder — the crypto layer treats the token as bytes, and we
     // avoid real Slack bot-token shapes so secret scanners don't flag it.
     const token = "slack-bot-token-placeholder";
@@ -37,9 +39,7 @@ describe("slack token crypto", () => {
   });
 
   it("throws when a GCM token is read without its key", () => {
-    config.SLACK_TOKEN_ENCRYPTION_KEY = crypto
-      .randomBytes(32)
-      .toString("hex");
+    config.SLACK_TOKEN_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
     const stored = encryptSlackToken("bot-token-placeholder");
     config.SLACK_TOKEN_ENCRYPTION_KEY = undefined;
     expect(() => decryptSlackToken(stored)).toThrow();

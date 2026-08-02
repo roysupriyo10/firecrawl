@@ -1,0 +1,22 @@
+# Minimal SearXNG config for Firecrawl /v2/search (JSON API).
+# Docs: https://docs.searxng.org/admin/settings/settings.html
+use_default_settings: true
+
+general:
+  instance_name: "firecrawl-searxng"
+
+search:
+  # Firecrawl calls GET /search?format=json
+  formats:
+    - html
+    - json
+
+server:
+  # Bound inside Docker; not exposed publicly by default.
+  bind_address: "0.0.0.0"
+  secret_key: "change-me-in-production-firecrawl-searxng"
+  limiter: false
+  image_proxy: false
+
+ui:
+  static_use_hash: true

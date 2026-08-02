@@ -41,4 +41,3 @@ describe("v2.usage e2e", () => {
     expect(typeof resp.maxConcurrency).toBe("number");
   }, 60_000);
 });
-

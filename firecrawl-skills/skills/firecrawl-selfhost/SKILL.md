@@ -33,6 +33,7 @@ Skills and code live in the **same** repo. Do not assume a separate skills packa
 | Base URL | default SDK / CLI | `FIRECRAWL_API_URL=http://localhost:3002` (or Tailscale host) |
 | API key | required | optional when `USE_DB_AUTHENTICATION=false` |
 | Screenshot / branding | fire-engine / chrome-cdp | Playwright microservice |
+| Search | cloud engine | **SearXNG** in compose (`SEARXNG_ENDPOINT=http://searxng:8080`) |
 | LLM | Firecrawl-managed | `MODEL_PROVIDER` + provider API keys in `.env` |
 
 ## Invariants (do not regress)
@@ -41,6 +42,7 @@ Skills and code live in the **same** repo. Do not assume a separate skills packa
 2. LLM extract uses `getModel()`; `MODEL_PROVIDER` overrides call-site providers. Specialty multi-provider paths use `getModelExact()`.
 3. Deploy images go to `$FIRECRAWL_REGISTRY` (e.g. `ghcr.io/roysupriyo10`), never `ghcr.io/firecrawl`.
 4. Queue default is Postgres (`nuq-postgres`). FoundationDB is optional (`NUQ_BACKEND=fdb`) and not required for normal self-host.
+5. `/v2/search` should hit in-compose SearXNG (`docker-compose` service `searxng` + `searxng/settings.yml` with `formats: [html, json]`). Do not leave `SEARXNG_ENDPOINT` empty in production self-host.
 
 ## Route to sibling skills
 

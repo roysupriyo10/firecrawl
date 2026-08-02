@@ -1,6 +1,10 @@
 export function getVersion(): string {
   try {
-    if (typeof process !== "undefined" && process.env && process.env.npm_package_version) {
+    if (
+      typeof process !== "undefined" &&
+      process.env &&
+      process.env.npm_package_version
+    ) {
       return process.env.npm_package_version as string;
     }
 
@@ -11,4 +15,3 @@ export function getVersion(): string {
     return "3.x.x";
   }
 }
-

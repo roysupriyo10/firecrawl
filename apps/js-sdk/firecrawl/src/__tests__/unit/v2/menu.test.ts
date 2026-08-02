@@ -3,7 +3,9 @@ import { scrape } from "../../../v2/methods/scrape";
 
 describe("JS SDK v2 menu format", () => {
   function makeHttp(postImpl: (url: string, data: any) => any) {
-    return { post: jest.fn(async (u: string, d: any) => postImpl(u, d)) } as any;
+    return {
+      post: jest.fn(async (u: string, d: any) => postImpl(u, d)),
+    } as any;
   }
 
   test("scrape with menu format returns menu data", async () => {
@@ -29,26 +31,34 @@ describe("JS SDK v2 menu format", () => {
                     id: "burger",
                     name: "Classic Burger",
                     description: "Beef patty with cheese",
-                    images: [{ url: "https://example.com/burger.jpg", alt: "Burger" }],
-                    price: { amount: 12.5, currency: "USD", formatted: "$12.50" },
+                    images: [
+                      { url: "https://example.com/burger.jpg", alt: "Burger" },
+                    ],
+                    price: {
+                      amount: 12.5,
+                      currency: "USD",
+                      formatted: "$12.50",
+                    },
                     availability: { inStock: true, text: "Available" },
                     dietary: ["contains-gluten"],
                     calories: 800,
                     optionGroups: [],
                     identifiers: { merchantItemId: "ITEM-1" },
                     url: "https://example.com/menu#burger",
-                    sourceUrl: "https://example.com/menu"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
+                    sourceUrl: "https://example.com/menu",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["menu"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["menu"],
+    });
 
     expect(result.menu).toBeDefined();
     expect(result.menu?.isMenu).toBe(true);
@@ -60,10 +70,18 @@ describe("JS SDK v2 menu format", () => {
     expect(result.menu?.sections?.[0]?.items?.[0]?.name).toBe("Classic Burger");
     expect(result.menu?.sections?.[0]?.items?.[0]?.price?.amount).toBe(12.5);
     expect(result.menu?.sections?.[0]?.items?.[0]?.price?.currency).toBe("USD");
-    expect(result.menu?.sections?.[0]?.items?.[0]?.availability?.inStock).toBe(true);
-    expect(result.menu?.sections?.[0]?.items?.[0]?.images?.[0]?.url).toBe("https://example.com/burger.jpg");
-    expect(result.menu?.sections?.[0]?.items?.[0]?.dietary?.[0]).toBe("contains-gluten");
-    expect(result.menu?.sections?.[0]?.items?.[0]?.identifiers?.merchantItemId).toBe("ITEM-1");
+    expect(result.menu?.sections?.[0]?.items?.[0]?.availability?.inStock).toBe(
+      true,
+    );
+    expect(result.menu?.sections?.[0]?.items?.[0]?.images?.[0]?.url).toBe(
+      "https://example.com/burger.jpg",
+    );
+    expect(result.menu?.sections?.[0]?.items?.[0]?.dietary?.[0]).toBe(
+      "contains-gluten",
+    );
+    expect(
+      result.menu?.sections?.[0]?.items?.[0]?.identifiers?.merchantItemId,
+    ).toBe("ITEM-1");
   });
 
   test("scrape with menu and markdown formats returns both", async () => {
@@ -92,18 +110,20 @@ describe("JS SDK v2 menu format", () => {
                     dietary: [],
                     optionGroups: [],
                     identifiers: {},
-                    sourceUrl: "https://example.com/cafe"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
+                    sourceUrl: "https://example.com/cafe",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["markdown", "menu"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["markdown", "menu"],
+    });
 
     expect(result.markdown).toBe("# Example Content");
     expect(result.menu).toBeDefined();
@@ -117,13 +137,15 @@ describe("JS SDK v2 menu format", () => {
       data: {
         success: true,
         data: {
-          markdown: "# Example"
-        }
-      }
+          markdown: "# Example",
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["markdown"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["markdown"],
+    });
 
     expect(result.markdown).toBe("# Example");
     expect(result.menu).toBeUndefined();
@@ -136,13 +158,15 @@ describe("JS SDK v2 menu format", () => {
         success: true,
         data: {
           markdown: "# Blog Post",
-          warning: "No menu found on this page."
-        }
-      }
+          warning: "No menu found on this page.",
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["menu"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["menu"],
+    });
 
     expect(result.menu).toBeUndefined();
     expect(result.warning).toContain("No menu found");
@@ -158,7 +182,11 @@ describe("JS SDK v2 menu format", () => {
             isMenu: true,
             confidence: 0.9,
             sourceUrl: "https://example.com/menu",
-            merchant: { name: "Acme Bistro", type: "restaurant", location: { city: "Springfield" } },
+            merchant: {
+              name: "Acme Bistro",
+              type: "restaurant",
+              location: { city: "Springfield" },
+            },
             sections: [
               {
                 id: "starters",
@@ -173,9 +201,9 @@ describe("JS SDK v2 menu format", () => {
                     dietary: ["vegetarian"],
                     optionGroups: [],
                     identifiers: {},
-                    sourceUrl: "https://example.com/menu"
-                  }
-                ]
+                    sourceUrl: "https://example.com/menu",
+                  },
+                ],
               },
               {
                 id: "desserts",
@@ -189,25 +217,35 @@ describe("JS SDK v2 menu format", () => {
                     dietary: [],
                     optionGroups: [],
                     identifiers: {},
-                    sourceUrl: "https://example.com/menu"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
+                    sourceUrl: "https://example.com/menu",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["menu"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["menu"],
+    });
 
     expect(result.menu).toBeDefined();
     expect(result.menu?.sections).toHaveLength(2);
-    expect(result.menu?.sections?.[0]?.items?.[0]?.dietary?.[0]).toBe("vegetarian");
+    expect(result.menu?.sections?.[0]?.items?.[0]?.dietary?.[0]).toBe(
+      "vegetarian",
+    );
     expect(result.menu?.sections?.[1]?.name).toBe("Desserts");
-    expect(result.menu?.sections?.[1]?.items?.[0]?.images?.[0]?.url).toBe("https://example.com/cake.jpg");
-    expect(result.menu?.sections?.[1]?.items?.[0]?.availability?.inStock).toBe(false);
-    expect(result.menu?.sections?.[1]?.items?.[0]?.availability?.text).toBe("Sold out");
+    expect(result.menu?.sections?.[1]?.items?.[0]?.images?.[0]?.url).toBe(
+      "https://example.com/cake.jpg",
+    );
+    expect(result.menu?.sections?.[1]?.items?.[0]?.availability?.inStock).toBe(
+      false,
+    );
+    expect(result.menu?.sections?.[1]?.items?.[0]?.availability?.text).toBe(
+      "Sold out",
+    );
   });
 });

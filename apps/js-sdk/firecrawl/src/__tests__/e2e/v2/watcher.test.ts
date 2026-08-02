@@ -16,7 +16,9 @@ beforeAll(async () => {
 describe("v2.watcher e2e", () => {
   test("crawl watcher minimal", async () => {
     // client is initialized in beforeAll
-    const start = await client.startCrawl("https://docs.firecrawl.dev", { limit: 3 });
+    const start = await client.startCrawl("https://docs.firecrawl.dev", {
+      limit: 3,
+    });
 
     expect(typeof start.id).toBe("string");
 
@@ -27,7 +29,9 @@ describe("v2.watcher e2e", () => {
 
     watcher.on("snapshot", (snap: any) => {
       snapshots += 1;
-      expect(["scraping", "completed", "failed", "cancelled"]).toContain(snap.status);
+      expect(["scraping", "completed", "failed", "cancelled"]).toContain(
+        snap.status,
+      );
       expect(typeof snap.completed).toBe("number");
       expect(typeof snap.total).toBe("number");
     });
@@ -36,7 +40,7 @@ describe("v2.watcher e2e", () => {
       documents += 1;
     });
 
-    const final = await new Promise<any>(async (resolve) => {
+    const final = await new Promise<any>(async resolve => {
       watcher.on("done", (payload: any) => {
         resolve(payload);
       });
@@ -56,15 +60,19 @@ describe("v2.watcher e2e", () => {
 
   test("batch watcher with options (kind, pollInterval, timeout)", async () => {
     // client is initialized in beforeAll
-    const urls = [
-      "https://docs.firecrawl.dev",
-      "https://firecrawl.dev",
-    ];
+    const urls = ["https://docs.firecrawl.dev", "https://firecrawl.dev"];
 
-    const start = await client.startBatchScrape(urls, { options: { formats: ["markdown"] }, ignoreInvalidURLs: true });
+    const start = await client.startBatchScrape(urls, {
+      options: { formats: ["markdown"] },
+      ignoreInvalidURLs: true,
+    });
     expect(typeof start.id).toBe("string");
 
-    const watcher = client.watcher(start.id, { kind: "batch", pollInterval: 2, timeout: 180 });
+    const watcher = client.watcher(start.id, {
+      kind: "batch",
+      pollInterval: 2,
+      timeout: 180,
+    });
 
     let snapshots = 0;
     let gotCompleted = false;
@@ -72,10 +80,12 @@ describe("v2.watcher e2e", () => {
     watcher.on("snapshot", (snap: any) => {
       snapshots += 1;
       if (snap.status === "completed") gotCompleted = true;
-      expect(["scraping", "completed", "failed", "cancelled"]).toContain(snap.status);
+      expect(["scraping", "completed", "failed", "cancelled"]).toContain(
+        snap.status,
+      );
     });
 
-    const final = await new Promise<any>(async (resolve) => {
+    const final = await new Promise<any>(async resolve => {
       watcher.on("done", (payload: any) => {
         resolve(payload);
       });
@@ -93,4 +103,3 @@ describe("v2.watcher e2e", () => {
     watcher.close();
   }, 300_000);
 });
-

@@ -218,12 +218,7 @@ export interface ScrapeOptions {
 }
 
 export type RedactPIIEntity =
-  | "PERSON"
-  | "EMAIL"
-  | "PHONE"
-  | "LOCATION"
-  | "FINANCIAL"
-  | "SECRET";
+  "PERSON" | "EMAIL" | "PHONE" | "LOCATION" | "FINANCIAL" | "SECRET";
 
 export interface RedactPIIOptions {
   /**
@@ -264,12 +259,7 @@ export interface ThreatProtectionOptions {
 }
 
 export type ParseFileData =
-  | Blob
-  | File
-  | Buffer
-  | Uint8Array
-  | ArrayBuffer
-  | string;
+  Blob | File | Buffer | Uint8Array | ArrayBuffer | string;
 
 export interface ParseFile {
   data: ParseFileData;
@@ -304,11 +294,7 @@ export interface WebhookConfig {
 
 // Agent webhook events differ from crawl: has 'action' and 'cancelled', no 'page'
 export type AgentWebhookEvent =
-  | "started"
-  | "action"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "started" | "action" | "completed" | "failed" | "cancelled";
 
 export interface AgentWebhookConfig {
   url: string;
@@ -428,10 +414,7 @@ export interface BrandingProfile {
     headerHeight?: string;
     footerHeight?: string;
     [key: string]:
-      | number
-      | string
-      | Record<string, number | string | undefined>
-      | undefined;
+      number | string | Record<string, number | string | undefined> | undefined;
   };
   tone?: {
     voice?: string;
@@ -796,51 +779,6 @@ export interface MapOptions {
   threatProtection?: ThreatProtectionOptions;
 }
 
-export type FeedbackRating = "good" | "partial" | "bad";
-export type EndpointFeedbackEndpoint = "search" | "scrape" | "parse" | "map";
-
-export interface FeedbackValuableSource {
-  url: string;
-  reason?: string;
-}
-
-export interface FeedbackMissingContent {
-  topic: string;
-  description?: string;
-}
-
-export interface SearchFeedbackRequest {
-  rating: FeedbackRating;
-  valuableSources?: FeedbackValuableSource[];
-  missingContent?: FeedbackMissingContent[];
-  querySuggestions?: string;
-  integration?: string | null;
-  origin?: string;
-}
-
-export interface EndpointFeedbackRequest extends SearchFeedbackRequest {
-  endpoint: EndpointFeedbackEndpoint;
-  jobId: string;
-  issues?: string[];
-  tags?: string[];
-  note?: string;
-  url?: string;
-  pageNumbers?: number[];
-  /** Small endpoint-specific metadata object. Must be 8KB or smaller. */
-  metadata?: Record<string, unknown>;
-}
-
-export interface FeedbackResponse {
-  success: true;
-  feedbackId: string;
-  creditsRefunded: number;
-  alreadySubmitted?: boolean;
-  dailyCapReached?: boolean;
-  creditsRefundedToday?: number;
-  dailyRefundCap?: number;
-  warning?: string;
-}
-
 /**
  * Schedule for a monitor.
  *
@@ -921,9 +859,7 @@ export interface MonitorSearchTarget {
 }
 
 export type MonitorTarget =
-  | MonitorScrapeTarget
-  | MonitorCrawlTarget
-  | MonitorSearchTarget;
+  MonitorScrapeTarget | MonitorCrawlTarget | MonitorSearchTarget;
 
 export interface CreateMonitorRequest {
   name: string;
@@ -1046,11 +982,7 @@ export interface MonitorCheck {
   reservedCredits?: number | null;
   actualCredits?: number | null;
   billingStatus:
-    | "not_applicable"
-    | "reserved"
-    | "confirmed"
-    | "released"
-    | "failed";
+    "not_applicable" | "reserved" | "confirmed" | "released" | "failed";
   summary: MonitorSummary;
   targetResults?: MonitorTargetResult[];
   notificationStatus?: unknown;

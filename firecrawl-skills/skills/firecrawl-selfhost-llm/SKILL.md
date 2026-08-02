@@ -50,5 +50,4 @@ Google SDK reads **`GOOGLE_GENERATIVE_AI_API_KEY`** (exact name).
 
 ## Not covered
 
-- Feedback API still needs product DB auth (`DB_DISABLED` with `USE_DB_AUTHENTICATION=false` is expected).
 - FoundationDB npm native build is optional; default queue is Postgres.

@@ -110,9 +110,12 @@ USE_DB_AUTHENTICATION=false
 
 # You can specify a SearXNG server with the JSON format enabled, if you'd like to use that instead of direct Google.
 # You can also customize the engines and categories parameters, but the defaults should also work just fine.
-# SEARXNG_ENDPOINT=http://your.searxng.server
+# SearXNG is included in docker-compose.yaml (service `searxng`).
+# Default endpoint (compose network):
+SEARXNG_ENDPOINT=http://searxng:8080
 # SEARXNG_ENGINES=
 # SEARXNG_CATEGORIES=
+# Config: ./searxng/settings.yml (must allow format=json for Firecrawl).
 
 ## === Other ===
 

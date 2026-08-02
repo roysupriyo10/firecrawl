@@ -33,7 +33,10 @@ function queryString(params?: Record<string, unknown>): string {
   return str ? `?${str}` : "";
 }
 
-function dataOrThrow<T>(res: { status: number; data?: ApiResponse<T> }, action: string): T {
+function dataOrThrow<T>(
+  res: { status: number; data?: ApiResponse<T> },
+  action: string,
+): T {
   if (res.status !== 200 || !res.data?.success || res.data.data == null) {
     throwForBadResponse(res as any, action);
   }
@@ -45,7 +48,10 @@ export async function createMonitor(
   request: CreateMonitorRequest,
 ): Promise<Monitor> {
   try {
-    const res = await http.post<ApiResponse<Monitor>>("/v2/monitor", request as any);
+    const res = await http.post<ApiResponse<Monitor>>(
+      "/v2/monitor",
+      request as any,
+    );
     return dataOrThrow(res, "create monitor");
   } catch (err: any) {
     if (err?.isAxiosError) return normalizeAxiosError(err, "create monitor");
@@ -73,7 +79,9 @@ export async function getMonitor(
   monitorId: string,
 ): Promise<Monitor> {
   try {
-    const res = await http.get<ApiResponse<Monitor>>(`/v2/monitor/${monitorId}`);
+    const res = await http.get<ApiResponse<Monitor>>(
+      `/v2/monitor/${monitorId}`,
+    );
     return dataOrThrow(res, "get monitor");
   } catch (err: any) {
     if (err?.isAxiosError) return normalizeAxiosError(err, "get monitor");
@@ -103,7 +111,9 @@ export async function deleteMonitor(
   monitorId: string,
 ): Promise<boolean> {
   try {
-    const res = await http.delete<ApiResponse<unknown>>(`/v2/monitor/${monitorId}`);
+    const res = await http.delete<ApiResponse<unknown>>(
+      `/v2/monitor/${monitorId}`,
+    );
     if (res.status !== 200 || !res.data?.success) {
       throwForBadResponse(res, "delete monitor");
     }
@@ -141,7 +151,8 @@ export async function listMonitorChecks(
     );
     return dataOrThrow(res, "list monitor checks");
   } catch (err: any) {
-    if (err?.isAxiosError) return normalizeAxiosError(err, "list monitor checks");
+    if (err?.isAxiosError)
+      return normalizeAxiosError(err, "list monitor checks");
     throw err;
   }
 }
@@ -153,7 +164,13 @@ export async function getMonitorCheck(
   options?: GetMonitorCheckOptions,
 ): Promise<MonitorCheckDetail> {
   try {
-    const { autoPaginate: _autoPaginate, maxPages: _maxPages, maxResults: _maxResults, maxWaitTime: _maxWaitTime, ...query } = options ?? {};
+    const {
+      autoPaginate: _autoPaginate,
+      maxPages: _maxPages,
+      maxResults: _maxResults,
+      maxWaitTime: _maxWaitTime,
+      ...query
+    } = options ?? {};
     const res = await http.get<ApiResponse<MonitorCheckDetail>>(
       `/v2/monitor/${monitorId}/checks/${checkId}${queryString(query as Record<string, unknown>)}`,
     );

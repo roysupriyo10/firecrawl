@@ -28,10 +28,15 @@ describe("zodSchemaToJson utility", () => {
 
   test("zodSchemaToJsonSchema converts Zod schemas to JSON Schema", () => {
     const simpleSchema = z.object({ name: z.string() });
-    const simpleResult = zodSchemaToJsonSchema(simpleSchema) as Record<string, unknown>;
+    const simpleResult = zodSchemaToJsonSchema(simpleSchema) as Record<
+      string,
+      unknown
+    >;
     expect(simpleResult.type).toBe("object");
     expect(simpleResult.properties).toBeDefined();
-    expect((simpleResult.properties as Record<string, unknown>).name).toBeDefined();
+    expect(
+      (simpleResult.properties as Record<string, unknown>).name,
+    ).toBeDefined();
 
     const complexSchema = z.object({
       id: z.string().uuid(),
@@ -44,22 +49,34 @@ describe("zodSchemaToJson utility", () => {
         nested: z.object({ value: z.number() }),
       }),
     });
-    const complexResult = zodSchemaToJsonSchema(complexSchema) as Record<string, unknown>;
+    const complexResult = zodSchemaToJsonSchema(complexSchema) as Record<
+      string,
+      unknown
+    >;
     expect(complexResult.type).toBe("object");
     expect(complexResult.properties).toBeDefined();
     expect(complexResult.required).toContain("id");
     expect(complexResult.required).not.toContain("age");
 
-    const enumResult = zodSchemaToJsonSchema(z.enum(["a", "b", "c"])) as Record<string, unknown>;
+    const enumResult = zodSchemaToJsonSchema(z.enum(["a", "b", "c"])) as Record<
+      string,
+      unknown
+    >;
     expect(enumResult.enum).toEqual(["a", "b", "c"]);
 
-    const arrayResult = zodSchemaToJsonSchema(z.array(z.number())) as Record<string, unknown>;
+    const arrayResult = zodSchemaToJsonSchema(z.array(z.number())) as Record<
+      string,
+      unknown
+    >;
     expect(arrayResult.type).toBe("array");
     expect(arrayResult.items).toBeDefined();
   });
 
   test("zodSchemaToJsonSchema passes through non-Zod values unchanged", () => {
-    const jsonSchema = { type: "object", properties: { name: { type: "string" } } };
+    const jsonSchema = {
+      type: "object",
+      properties: { name: { type: "string" } },
+    };
     expect(zodSchemaToJsonSchema(jsonSchema)).toEqual(jsonSchema);
     expect(zodSchemaToJsonSchema(null)).toBe(null);
     expect(zodSchemaToJsonSchema(undefined)).toBe(undefined);
@@ -88,7 +105,10 @@ describe("zodSchemaToJson utility", () => {
     });
 
     if (isZodSchema(zodSchema)) {
-      const result = zodSchemaToJsonSchema(zodSchema) as Record<string, unknown>;
+      const result = zodSchemaToJsonSchema(zodSchema) as Record<
+        string,
+        unknown
+      >;
       expect(result.type).toBe("object");
       expect(result.properties).toBeDefined();
     } else {
@@ -102,6 +122,8 @@ describe("zodSchemaToJson utility", () => {
     };
 
     expect(isZodSchema(existingJsonSchema)).toBe(false);
-    expect(zodSchemaToJsonSchema(existingJsonSchema)).toEqual(existingJsonSchema);
+    expect(zodSchemaToJsonSchema(existingJsonSchema)).toEqual(
+      existingJsonSchema,
+    );
   });
 });

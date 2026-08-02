@@ -59,9 +59,10 @@ x-common-env: &common-env
   PROXY_SERVER: ${PROXY_SERVER}
   PROXY_USERNAME: ${PROXY_USERNAME}
   PROXY_PASSWORD: ${PROXY_PASSWORD}
-  SEARXNG_ENDPOINT: ${SEARXNG_ENDPOINT}
-  SEARXNG_ENGINES: ${SEARXNG_ENGINES}
-  SEARXNG_CATEGORIES: ${SEARXNG_CATEGORIES}
+  # Default: in-compose SearXNG service (see services.searxng).
+  SEARXNG_ENDPOINT: ${SEARXNG_ENDPOINT:-http://searxng:8080}
+  SEARXNG_ENGINES: ${SEARXNG_ENGINES:-}
+  SEARXNG_CATEGORIES: ${SEARXNG_CATEGORIES:-}
   # Set NUQ_BACKEND=fdb to run the queue on FoundationDB instead of Postgres
   NUQ_BACKEND: ${NUQ_BACKEND}
   FDB_CLUSTER_FILE: ${NUQ_BACKEND:+/var/fdb/fdb.cluster}
@@ -114,6 +115,8 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+      searxng:
+        condition: service_started
     ports:
       - "${PORT:-3002}:${INTERNAL_PORT:-3002}"
     volumes:
@@ -124,6 +127,32 @@ services:
     cpus: 4.0
     mem_limit: 8G
     memswap_limit: 8G
+
+  # Metasearch backend for POST /v2/search (free, self-hosted).
+  # Firecrawl reads SEARXNG_ENDPOINT (default http://searxng:8080).
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    networks:
+      - backend
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    # Not published to the host by default — only reachable on the backend network.
+    # To debug: add ports: ["8080:8080"] temporarily.
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+        compress: "true"
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    restart: unless-stopped
 
   redis:
     # NOTE: If you want to use Valkey (open source) instead of Redis (source available),

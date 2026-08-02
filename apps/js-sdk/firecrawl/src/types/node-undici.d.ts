@@ -7,4 +7,3 @@ declare module "node:undici" {
   };
   export default _default;
 }
-

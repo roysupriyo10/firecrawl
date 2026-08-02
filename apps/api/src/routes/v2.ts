@@ -5,8 +5,6 @@ import { RateLimiterMode } from "../types";
 import { SEARCH_CREDITS_FEATURE_ID } from "../services/autumn/autumn.service";
 import expressWs from "express-ws";
 import { searchController } from "../controllers/v2/search";
-import { feedbackController } from "../controllers/v2/feedback/controller";
-import { searchFeedbackController } from "../controllers/v2/search-feedback";
 import { scrapeController } from "../controllers/v2/scrape";
 import { keylessEligibilityController } from "../controllers/v2/keyless-eligibility";
 import {
@@ -167,19 +165,6 @@ v2Router.post(
   checkCreditsMiddleware(undefined, SEARCH_CREDITS_FEATURE_ID),
   blocklistMiddleware,
   wrap(searchController),
-);
-
-v2Router.post(
-  "/search/:jobId/feedback",
-  authMiddleware(RateLimiterMode.Account),
-  validateJobIdParam,
-  wrap(searchFeedbackController),
-);
-
-v2Router.post(
-  "/feedback",
-  authMiddleware(RateLimiterMode.Account),
-  wrap(feedbackController),
 );
 
 v2Router.post(

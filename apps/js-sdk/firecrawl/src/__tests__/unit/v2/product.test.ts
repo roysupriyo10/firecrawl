@@ -3,7 +3,9 @@ import { scrape } from "../../../v2/methods/scrape";
 
 describe("JS SDK v2 product format", () => {
   function makeHttp(postImpl: (url: string, data: any) => any) {
-    return { post: jest.fn(async (u: string, d: any) => postImpl(u, d)) } as any;
+    return {
+      post: jest.fn(async (u: string, d: any) => postImpl(u, d)),
+    } as any;
   }
 
   test("scrape with product format returns product data", async () => {
@@ -22,28 +24,42 @@ describe("JS SDK v2 product format", () => {
             variants: [
               {
                 id: "default",
-                images: [{ url: "https://example.com/shoe.jpg", alt: "Acme shoe" }],
+                images: [
+                  { url: "https://example.com/shoe.jpg", alt: "Acme shoe" },
+                ],
                 price: { amount: 89.99, currency: "USD", formatted: "$89.99" },
-                sale: { originalPrice: { amount: 129.99, currency: "USD", formatted: "$129.99" } },
-                availability: { inStock: true, text: "In stock" }
-              }
-            ]
-          }
-        }
-      }
+                sale: {
+                  originalPrice: {
+                    amount: 129.99,
+                    currency: "USD",
+                    formatted: "$129.99",
+                  },
+                },
+                availability: { inStock: true, text: "In stock" },
+              },
+            ],
+          },
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["product"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["product"],
+    });
 
     expect(result.product).toBeDefined();
     expect(result.product?.title).toBe("Acme Running Shoe");
     expect(result.product?.brand).toBe("Acme");
     expect(result.product?.variants?.[0]?.price?.amount).toBe(89.99);
     expect(result.product?.variants?.[0]?.price?.currency).toBe("USD");
-    expect(result.product?.variants?.[0]?.sale?.originalPrice?.amount).toBe(129.99);
+    expect(result.product?.variants?.[0]?.sale?.originalPrice?.amount).toBe(
+      129.99,
+    );
     expect(result.product?.variants?.[0]?.availability?.inStock).toBe(true);
-    expect(result.product?.variants?.[0]?.images?.[0]?.url).toBe("https://example.com/shoe.jpg");
+    expect(result.product?.variants?.[0]?.images?.[0]?.url).toBe(
+      "https://example.com/shoe.jpg",
+    );
   });
 
   test("scrape with product and markdown formats returns both", async () => {
@@ -59,16 +75,18 @@ describe("JS SDK v2 product format", () => {
             variants: [
               {
                 price: { amount: 12.5, currency: "USD" },
-                availability: { inStock: true }
-              }
-            ]
-          }
-        }
-      }
+                availability: { inStock: true },
+              },
+            ],
+          },
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["markdown", "product"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["markdown", "product"],
+    });
 
     expect(result.markdown).toBe("# Example Content");
     expect(result.product).toBeDefined();
@@ -82,13 +100,15 @@ describe("JS SDK v2 product format", () => {
       data: {
         success: true,
         data: {
-          markdown: "# Example"
-        }
-      }
+          markdown: "# Example",
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["markdown"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["markdown"],
+    });
 
     expect(result.markdown).toBe("# Example");
     expect(result.product).toBeUndefined();
@@ -101,13 +121,15 @@ describe("JS SDK v2 product format", () => {
         success: true,
         data: {
           markdown: "# Blog Post",
-          warning: "No product found on this page."
-        }
-      }
+          warning: "No product found on this page.",
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["product"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["product"],
+    });
 
     expect(result.product).toBeUndefined();
     expect(result.warning).toContain("No product found");
@@ -132,30 +154,36 @@ describe("JS SDK v2 product format", () => {
                 price: { amount: 19.0, currency: "USD" },
                 sale: { originalPrice: { amount: 24.0, currency: "USD" } },
                 availability: { inStock: true },
-                images: [{ url: "https://example.com/tshirt-red.jpg" }]
+                images: [{ url: "https://example.com/tshirt-red.jpg" }],
               },
               {
                 id: "v2",
                 sku: "TSHIRT-L-BLUE",
                 title: "Large / Blue",
                 values: { size: "L", color: "Blue" },
-                availability: { inStock: false, text: "Sold out" }
-              }
-            ]
-          }
-        }
-      }
+                availability: { inStock: false, text: "Sold out" },
+              },
+            ],
+          },
+        },
+      },
     };
 
     const http = makeHttp(() => mockResponse);
-    const result = await scrape(http, "https://example.com", { formats: ["product"] });
+    const result = await scrape(http, "https://example.com", {
+      formats: ["product"],
+    });
 
     expect(result.product).toBeDefined();
     expect(result.product?.variants).toHaveLength(2);
     expect(result.product?.variants?.[0]?.sku).toBe("TSHIRT-S-RED");
     expect(result.product?.variants?.[0]?.values?.color).toBe("Red");
-    expect(result.product?.variants?.[0]?.images?.[0]?.url).toBe("https://example.com/tshirt-red.jpg");
-    expect(result.product?.variants?.[0]?.sale?.originalPrice?.amount).toBe(24.0);
+    expect(result.product?.variants?.[0]?.images?.[0]?.url).toBe(
+      "https://example.com/tshirt-red.jpg",
+    );
+    expect(result.product?.variants?.[0]?.sale?.originalPrice?.amount).toBe(
+      24.0,
+    );
     expect(result.product?.variants?.[1]?.availability?.inStock).toBe(false);
     expect(result.product?.variants?.[1]?.availability?.text).toBe("Sold out");
   });

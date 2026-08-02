@@ -1,12 +1,20 @@
 import { describe, test, expect } from "@jest/globals";
-import { ensureValidFormats, ensureValidScrapeOptions } from "../../../v2/utils/validation";
+import {
+  ensureValidFormats,
+  ensureValidScrapeOptions,
+} from "../../../v2/utils/validation";
 import type { FormatOption } from "../../../v2/types";
 import { z } from "zod";
 
 describe("v2 utils: validation", () => {
   test("ensureValidFormats: plain 'json' string is invalid", () => {
-    const formats: FormatOption[] = ["markdown", "json"] as unknown as FormatOption[];
-    expect(() => ensureValidFormats(formats)).toThrow(/json format must be an object/i);
+    const formats: FormatOption[] = [
+      "markdown",
+      "json",
+    ] as unknown as FormatOption[];
+    expect(() => ensureValidFormats(formats)).toThrow(
+      /json format must be an object/i,
+    );
   });
 
   test("ensureValidFormats: accepts video string format", () => {
@@ -18,14 +26,18 @@ describe("v2 utils: validation", () => {
     // Valid cases - should not throw
     const valid1: FormatOption[] = [{ type: "json", prompt: "p" } as any];
     const valid2: FormatOption[] = [{ type: "json", schema: {} } as any];
-    const valid3: FormatOption[] = [{ type: "json", prompt: "p", schema: {} } as any];
+    const valid3: FormatOption[] = [
+      { type: "json", prompt: "p", schema: {} } as any,
+    ];
     expect(() => ensureValidFormats(valid1)).not.toThrow();
     expect(() => ensureValidFormats(valid2)).not.toThrow();
     expect(() => ensureValidFormats(valid3)).not.toThrow();
 
     // Invalid case - should throw when both are missing
     const bad: FormatOption[] = [{ type: "json" } as any];
-    expect(() => ensureValidFormats(bad)).toThrow(/requires either 'prompt' or 'schema'/i);
+    expect(() => ensureValidFormats(bad)).toThrow(
+      /requires either 'prompt' or 'schema'/i,
+    );
   });
 
   test("ensureValidFormats: converts zod schema to JSON schema", () => {
@@ -47,10 +59,16 @@ describe("v2 utils: validation", () => {
   });
 
   test("ensureValidScrapeOptions: validates timeout and waitFor bounds", () => {
-    expect(() => ensureValidScrapeOptions({ timeout: 0 })).toThrow(/timeout must be positive/i);
-    expect(() => ensureValidScrapeOptions({ waitFor: -1 })).toThrow(/waitFor must be non-negative/i);
+    expect(() => ensureValidScrapeOptions({ timeout: 0 })).toThrow(
+      /timeout must be positive/i,
+    );
+    expect(() => ensureValidScrapeOptions({ waitFor: -1 })).toThrow(
+      /waitFor must be non-negative/i,
+    );
     // valid
-    expect(() => ensureValidScrapeOptions({ timeout: 1000, waitFor: 0 })).not.toThrow();
+    expect(() =>
+      ensureValidScrapeOptions({ timeout: 1000, waitFor: 0 }),
+    ).not.toThrow();
   });
 
   test("ensureValidFormats: accepts screenshot viewport width/height", () => {
@@ -78,7 +96,9 @@ describe("v2 utils: validation", () => {
       ensureValidFormats([{ type: "highlights", query: "" } as any]),
     ).toThrow(/highlights format requires/i);
     expect(() =>
-      ensureValidFormats([{ type: "query", prompt: "p", mode: "quoted" } as any]),
+      ensureValidFormats([
+        { type: "query", prompt: "p", mode: "quoted" } as any,
+      ]),
     ).toThrow(/query format mode/i);
   });
 
@@ -96,7 +116,9 @@ describe("v2 utils: validation", () => {
       { type: "json", prompt: "extract", schema: schema.shape } as any,
     ];
     expect(() => ensureValidFormats(formats)).toThrow(/\.shape property/i);
-    expect(() => ensureValidFormats(formats)).toThrow(/Pass the Zod schema directly/i);
+    expect(() => ensureValidFormats(formats)).toThrow(
+      /Pass the Zod schema directly/i,
+    );
   });
 
   test("ensureValidFormats: detects mistaken use of zod schema.shape in changeTracking", () => {
@@ -107,4 +129,3 @@ describe("v2 utils: validation", () => {
     expect(() => ensureValidFormats(formats)).toThrow(/\.shape property/i);
   });
 });
-

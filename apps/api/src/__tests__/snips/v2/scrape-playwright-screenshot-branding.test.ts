@@ -5,7 +5,13 @@ import {
   ALLOW_TEST_SUITE_WEBSITE,
   TEST_SUITE_WEBSITE,
 } from "../lib";
-import { scrape, scrapeWithFailure, scrapeTimeout, idmux, Identity } from "./lib";
+import {
+  scrape,
+  scrapeWithFailure,
+  scrapeTimeout,
+  idmux,
+  Identity,
+} from "./lib";
 
 let identity: Identity;
 

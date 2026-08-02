@@ -163,7 +163,8 @@ const monitorNotificationInner = z
     if (notification.slack?.enabled && !notification.slack.channelId) {
       ctx.addIssue({
         code: "custom",
-        message: "A Slack channel is required when Slack notifications are enabled",
+        message:
+          "A Slack channel is required when Slack notifications are enabled",
         path: ["slack", "channelId"],
       });
     }

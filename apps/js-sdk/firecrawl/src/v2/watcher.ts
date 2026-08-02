@@ -6,31 +6,44 @@ import { getCrawlStatus } from "./methods/crawl";
 // Note: browsers/Deno expose globalThis.WebSocket, but many Node runtimes (<22.4 or without
 // experimental flags) do not. We lazily fall back to node:undici.
 
-type WebSocketConstructor = new (url: string, protocols?: string | string[]) => WebSocket;
+type WebSocketConstructor = new (
+  url: string,
+  protocols?: string | string[],
+) => WebSocket;
 
 const hasGlobalWebSocket = (): WebSocketConstructor | undefined => {
   if (typeof globalThis === "undefined") return undefined;
   const candidate = (globalThis as any).WebSocket;
-  return typeof candidate === "function" ? (candidate as WebSocketConstructor) : undefined;
+  return typeof candidate === "function"
+    ? (candidate as WebSocketConstructor)
+    : undefined;
 };
 
-const isNodeRuntime = () => typeof process !== "undefined" && !!process.versions?.node;
+const isNodeRuntime = () =>
+  typeof process !== "undefined" && !!process.versions?.node;
 
 let cachedWebSocket: WebSocketConstructor | undefined;
 let loadPromise: Promise<WebSocketConstructor | undefined> | undefined;
 
-const loadNodeWebSocket = async (): Promise<WebSocketConstructor | undefined> => {
+const loadNodeWebSocket = async (): Promise<
+  WebSocketConstructor | undefined
+> => {
   if (!isNodeRuntime()) return undefined;
   try {
     const undici = await import("node:undici");
-    const ctor = (undici as any).WebSocket ?? (undici as any).default?.WebSocket;
-    return typeof ctor === "function" ? (ctor as WebSocketConstructor) : undefined;
+    const ctor =
+      (undici as any).WebSocket ?? (undici as any).default?.WebSocket;
+    return typeof ctor === "function"
+      ? (ctor as WebSocketConstructor)
+      : undefined;
   } catch {
     return undefined;
   }
 };
 
-const getWebSocketCtor = async (): Promise<WebSocketConstructor | undefined> => {
+const getWebSocketCtor = async (): Promise<
+  WebSocketConstructor | undefined
+> => {
   if (cachedWebSocket) return cachedWebSocket;
   const globalWs = hasGlobalWebSocket();
   if (globalWs) {
@@ -44,7 +57,8 @@ const getWebSocketCtor = async (): Promise<WebSocketConstructor | undefined> => 
   return cachedWebSocket;
 };
 
-const decoder = typeof TextDecoder !== "undefined" ? new TextDecoder() : undefined;
+const decoder =
+  typeof TextDecoder !== "undefined" ? new TextDecoder() : undefined;
 
 const ensureUtf8String = (data: unknown): string | undefined => {
   if (typeof data === "string") return data;
@@ -55,7 +69,11 @@ const ensureUtf8String = (data: unknown): string | undefined => {
 
   const convertView = (view: ArrayBufferView): string | undefined => {
     if (typeof Buffer !== "undefined") {
-      return Buffer.from(view.buffer, view.byteOffset, view.byteLength).toString("utf8");
+      return Buffer.from(
+        view.buffer,
+        view.byteOffset,
+        view.byteLength,
+      ).toString("utf8");
     }
     return decoder?.decode(view);
   };
@@ -104,14 +122,23 @@ export class Watcher extends EventEmitter {
     // replace http/https with ws/wss
     const apiUrl = this.http.getApiUrl();
     const wsBase = apiUrl.replace(/^http/, "ws");
-    const path = this.kind === "crawl" ? `/v2/crawl/${this.jobId}` : `/v2/batch/scrape/${this.jobId}`;
+    const path =
+      this.kind === "crawl"
+        ? `/v2/crawl/${this.jobId}`
+        : `/v2/batch/scrape/${this.jobId}`;
     return `${wsBase}${path}`;
   }
 
   async start(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const onDone = () => { cleanup(); resolve(); };
-      const onError = (err: any) => { cleanup(); resolve(); };
+      const onDone = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = (err: any) => {
+        cleanup();
+        resolve();
+      };
       const cleanup = () => {
         this.removeListener("done", onDone);
         this.removeListener("error", onError);
@@ -152,7 +179,12 @@ export class Watcher extends EventEmitter {
         const body = JSON.parse(raw);
         const type = body.type as string | undefined;
         if (type === "error") {
-          this.emit("error", { status: "failed", data: [], error: body.error, id: this.jobId });
+          this.emit("error", {
+            status: "failed",
+            data: [],
+            error: body.error,
+            id: this.jobId,
+          });
           return;
         }
         if (type === "catchup") {
@@ -170,7 +202,14 @@ export class Watcher extends EventEmitter {
           const payload = body.data || body;
           const data = (payload.data || []) as Document[];
           if (data.length) this.emitDocuments(data);
-          this.emit("done", { status: "completed", data, id: this.jobId, total: payload.total, completed: payload.completed, creditsUsed: payload.creditsUsed });
+          this.emit("done", {
+            status: "completed",
+            data,
+            id: this.jobId,
+            total: payload.total,
+            completed: payload.completed,
+            creditsUsed: payload.creditsUsed,
+          });
           this.close();
           return;
         }
@@ -180,12 +219,22 @@ export class Watcher extends EventEmitter {
         // ignore
       }
       if (timeoutMs && Date.now() - startTs > timeoutMs) {
-        this.emit("error", { status: "failed", data: [], error: "Watcher timeout", id: this.jobId });
+        this.emit("error", {
+          status: "failed",
+          data: [],
+          error: "Watcher timeout",
+          id: this.jobId,
+        });
         this.close();
       }
     };
     ws.onerror = () => {
-      this.emit("error", { status: "failed", data: [], error: "WebSocket error", id: this.jobId });
+      this.emit("error", {
+        status: "failed",
+        data: [],
+        error: "WebSocket error",
+        id: this.jobId,
+      });
       this.close();
     };
     ws.onclose = () => {
@@ -195,7 +244,8 @@ export class Watcher extends EventEmitter {
 
   private documentKey(doc: Document): string {
     if (doc && typeof doc === "object") {
-      const explicitId = (doc as any).id ?? (doc as any).docId ?? (doc as any).url;
+      const explicitId =
+        (doc as any).id ?? (doc as any).docId ?? (doc as any).url;
       if (typeof explicitId === "string" && explicitId.length) {
         return explicitId;
       }
@@ -220,30 +270,38 @@ export class Watcher extends EventEmitter {
   private emitSnapshot(payload: any) {
     const status = payload.status as Snapshot["status"];
     const data = (payload.data || []) as Document[];
-    const snap: Snapshot = this.kind === "crawl"
-      ? {
-          id: this.jobId,
-          status,
-          completed: payload.completed ?? 0,
-          total: payload.total ?? 0,
-          creditsUsed: payload.creditsUsed,
-          expiresAt: payload.expiresAt,
-          next: payload.next ?? null,
-          data,
-        }
-      : {
-          id: this.jobId,
-          status,
-          completed: payload.completed ?? 0,
-          total: payload.total ?? 0,
-          creditsUsed: payload.creditsUsed,
-          expiresAt: payload.expiresAt,
-          next: payload.next ?? null,
-          data,
-        };
+    const snap: Snapshot =
+      this.kind === "crawl"
+        ? {
+            id: this.jobId,
+            status,
+            completed: payload.completed ?? 0,
+            total: payload.total ?? 0,
+            creditsUsed: payload.creditsUsed,
+            expiresAt: payload.expiresAt,
+            next: payload.next ?? null,
+            data,
+          }
+        : {
+            id: this.jobId,
+            status,
+            completed: payload.completed ?? 0,
+            total: payload.total ?? 0,
+            creditsUsed: payload.creditsUsed,
+            expiresAt: payload.expiresAt,
+            next: payload.next ?? null,
+            data,
+          };
     this.emit("snapshot", snap);
     if (["completed", "failed", "cancelled"].includes(status)) {
-      this.emit("done", { status, data, id: this.jobId, total: payload.total ?? 0, completed: payload.completed ?? 0, creditsUsed: payload.creditsUsed });
+      this.emit("done", {
+        status,
+        data,
+        id: this.jobId,
+        total: payload.total ?? 0,
+        completed: payload.completed ?? 0,
+        creditsUsed: payload.creditsUsed,
+      });
       this.close();
     }
   }
@@ -253,13 +311,21 @@ export class Watcher extends EventEmitter {
     const timeoutMs = this.timeout ? this.timeout * 1000 : undefined;
     while (!this.closed) {
       try {
-        const snap = this.kind === "crawl"
-          ? await getCrawlStatus(this.http as any, this.jobId)
-          : await getBatchScrapeStatus(this.http as any, this.jobId);
+        const snap =
+          this.kind === "crawl"
+            ? await getCrawlStatus(this.http as any, this.jobId)
+            : await getBatchScrapeStatus(this.http as any, this.jobId);
         this.emitDocuments((snap.data || []) as Document[]);
         this.emit("snapshot", snap);
         if (["completed", "failed", "cancelled"].includes(snap.status)) {
-          this.emit("done", { status: snap.status, data: snap.data, id: this.jobId, total: (snap as any).total ?? 0, completed: (snap as any).completed ?? 0, creditsUsed: (snap as any).creditsUsed });
+          this.emit("done", {
+            status: snap.status,
+            data: snap.data,
+            id: this.jobId,
+            total: (snap as any).total ?? 0,
+            completed: (snap as any).completed ?? 0,
+            creditsUsed: (snap as any).creditsUsed,
+          });
           this.close();
           break;
         }
@@ -267,11 +333,18 @@ export class Watcher extends EventEmitter {
         // ignore polling errors
       }
       if (timeoutMs && Date.now() - startTs > timeoutMs) {
-        this.emit("error", { status: "failed", data: [], error: "Watcher timeout", id: this.jobId });
+        this.emit("error", {
+          status: "failed",
+          data: [],
+          error: "Watcher timeout",
+          id: this.jobId,
+        });
         this.close();
         break;
       }
-      await new Promise((r) => setTimeout(r, Math.max(1000, this.pollInterval * 1000)));
+      await new Promise(r =>
+        setTimeout(r, Math.max(1000, this.pollInterval * 1000)),
+      );
     }
   }
 
@@ -280,4 +353,3 @@ export class Watcher extends EventEmitter {
     if (this.ws && (this.ws as any).close) (this.ws as any).close();
   }
 }
-

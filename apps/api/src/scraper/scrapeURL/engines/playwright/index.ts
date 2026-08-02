@@ -6,10 +6,7 @@ import { robustFetch } from "../../lib/fetch";
 import { getInnerJson } from "@mendable/firecrawl-rs";
 import { hasFormatOfType } from "../../../../lib/format-utils";
 import { getBrandingScript } from "../fire-engine/brandingScript";
-import {
-  BrandingFailedError,
-  ScreenshotFailedError,
-} from "../../error";
+import { BrandingFailedError, ScreenshotFailedError } from "../../error";
 
 const BRANDING_DEFAULT_WAIT_MS = 2000;
 

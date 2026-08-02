@@ -22,10 +22,8 @@ describe("Audio format engine routing (buildFallbackList)", () => {
     ({ buildFallbackList } = await import(
       "../../../scraper/scrapeURL/engines/index.js"
     ));
-    ({
-      clearDataLayerCapabilitiesForTest,
-      setDataLayerCapabilitiesForTest,
-    } = await import("../../../lib/data-layer.js"));
+    ({ clearDataLayerCapabilitiesForTest, setDataLayerCapabilitiesForTest } =
+      await import("../../../lib/data-layer.js"));
   });
 
   afterEach(() => {

@@ -3,7 +3,9 @@ import { db } from "../../../db/connection";
 import * as schema from "../../../db/schema";
 import type { SlackIncomingWebhook, SlackInstallationRow } from "./types";
 
-function toRow(row: typeof schema.slack_installations.$inferSelect): SlackInstallationRow {
+function toRow(
+  row: typeof schema.slack_installations.$inferSelect,
+): SlackInstallationRow {
   return {
     id: row.id,
     team_id: row.team_id,
@@ -15,7 +17,8 @@ function toRow(row: typeof schema.slack_installations.$inferSelect): SlackInstal
     scope: row.scope,
     authed_user_id: row.authed_user_id,
     app_id: row.app_id,
-    incoming_webhook: (row.incoming_webhook as SlackIncomingWebhook | null) ?? null,
+    incoming_webhook:
+      (row.incoming_webhook as SlackIncomingWebhook | null) ?? null,
     revoked_at: row.revoked_at,
     created_at: row.created_at,
     updated_at: row.updated_at,

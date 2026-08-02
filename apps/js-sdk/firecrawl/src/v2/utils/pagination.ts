@@ -8,7 +8,7 @@ export async function fetchAllPages<T = Document>(
   http: HttpClient,
   nextUrl: string,
   initial: T[],
-  pagination?: PaginationConfig
+  pagination?: PaginationConfig,
 ): Promise<T[]> {
   const docs = initial.slice();
   let current: string | null = nextUrl;
@@ -20,11 +20,20 @@ export async function fetchAllPages<T = Document>(
 
   while (current) {
     if (maxPages != null && pageCount >= maxPages) break;
-    if (maxWaitTime != null && (Date.now() - started) / 1000 > maxWaitTime) break;
+    if (maxWaitTime != null && (Date.now() - started) / 1000 > maxWaitTime)
+      break;
 
-    let payload: { success: boolean; next?: string | null; data?: T[] | { pages?: T[]; next?: string | null } } | null = null;
+    let payload: {
+      success: boolean;
+      next?: string | null;
+      data?: T[] | { pages?: T[]; next?: string | null };
+    } | null = null;
     try {
-      const res = await http.get<{ success: boolean; next?: string | null; data?: T[] | { pages?: T[]; next?: string | null } }>(current);
+      const res = await http.get<{
+        success: boolean;
+        next?: string | null;
+        data?: T[] | { pages?: T[]; next?: string | null };
+      }>(current);
       payload = res.data;
     } catch {
       break; // axios rejects on non-2xx; stop pagination gracefully
@@ -39,10 +48,10 @@ export async function fetchAllPages<T = Document>(
       docs.push(d as T);
     }
     if (maxResults != null && docs.length >= maxResults) break;
-    current = (payload.next ?? (Array.isArray(payload.data) ? null : payload.data?.next) ?? null) as string | null;
+    current = (payload.next ??
+      (Array.isArray(payload.data) ? null : payload.data?.next) ??
+      null) as string | null;
     pageCount += 1;
   }
   return docs;
 }
-
-

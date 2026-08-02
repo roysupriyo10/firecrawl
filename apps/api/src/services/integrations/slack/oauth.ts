@@ -139,7 +139,11 @@ export async function handleOAuthCallback(params: {
   const statePayload = await consumeState(params.state);
   if (!statePayload) {
     logger.warn("Slack OAuth callback with invalid/expired state");
-    return { ok: false, error: "invalid_state", redirectPath: "/app/monitoring" };
+    return {
+      ok: false,
+      error: "invalid_state",
+      redirectPath: "/app/monitoring",
+    };
   }
 
   const result = await exchangeOAuthCode({

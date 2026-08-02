@@ -22,7 +22,11 @@ function makeClient(
 
 /** Make an axios-like error carrying an RFC 7807 Problem body. */
 function problemError(status: number, body: any) {
-  return { isAxiosError: true, response: { status, data: body }, message: "req failed" };
+  return {
+    isAxiosError: true,
+    response: { status, data: body },
+    message: "req failed",
+  };
 }
 
 describe("research.searchPapers", () => {
@@ -50,7 +54,10 @@ describe("research.searchPapers", () => {
   });
 
   test("omits absent options", async () => {
-    const { client, calls } = makeClient(() => ({ status: 200, data: { results: [] } }));
+    const { client, calls } = makeClient(() => ({
+      status: 200,
+      data: { results: [] },
+    }));
     await client.searchPapers("q");
     const qs = new URLSearchParams(calls[0].split("?")[1]);
     expect([...qs.keys()]).toEqual(["query", "origin"]);
@@ -59,16 +66,22 @@ describe("research.searchPapers", () => {
 
   test("rejects empty query", async () => {
     const { client } = makeClient();
-    await expect(client.searchPapers("  ")).rejects.toThrow(/query cannot be empty/i);
+    await expect(client.searchPapers("  ")).rejects.toThrow(
+      /query cannot be empty/i,
+    );
   });
 
   test("rejects non-positive k", async () => {
     const { client } = makeClient();
-    await expect(client.searchPapers("q", { k: 0 })).rejects.toThrow(/k must be positive/i);
+    await expect(client.searchPapers("q", { k: 0 })).rejects.toThrow(
+      /k must be positive/i,
+    );
   });
 
   test("returns the response body verbatim", async () => {
-    const payload = { results: [{ paperId: "1", title: "t", abstract: "a", score: 0.1 }] };
+    const payload = {
+      results: [{ paperId: "1", title: "t", abstract: "a", score: 0.1 }],
+    };
     const { client } = makeClient(() => ({ status: 200, data: payload }));
     await expect(client.searchPapers("q")).resolves.toEqual(payload);
   });
@@ -76,7 +89,10 @@ describe("research.searchPapers", () => {
 
 describe("research.getPaper", () => {
   test("detail mode encodes the id and sends only the origin param", async () => {
-    const { client, calls } = makeClient(() => ({ status: 200, data: { paper: {} } }));
+    const { client, calls } = makeClient(() => ({
+      status: 200,
+      data: { paper: {} },
+    }));
     await client.getPaper("arxiv:2105.05233");
     const [path, query] = calls[0].split("?");
     expect(path).toBe("/v2/search/research/papers/arxiv%3A2105.05233");
@@ -109,9 +125,9 @@ describe("research.getPaper", () => {
 describe("research.similarPapers", () => {
   test("requires intent", async () => {
     const { client } = makeClient();
-    await expect(
-      client.similarPapers("123", { intent: "" }),
-    ).rejects.toThrow(/intent cannot be empty/i);
+    await expect(client.similarPapers("123", { intent: "" })).rejects.toThrow(
+      /intent cannot be empty/i,
+    );
   });
 
   test("builds path and query with repeated anchors and rerank", async () => {
@@ -139,7 +155,10 @@ describe("research.similarPapers", () => {
 
 describe("research.searchGithub", () => {
   test("builds query string", async () => {
-    const { client, calls } = makeClient(() => ({ status: 200, data: { results: [] } }));
+    const { client, calls } = makeClient(() => ({
+      status: 200,
+      data: { results: [] },
+    }));
     await client.searchGithub("milvus hybrid search", { k: 10 });
     const qs = new URLSearchParams(calls[0].split("?")[1]);
     expect(calls[0].startsWith("/v2/search/research/github?")).toBe(true);

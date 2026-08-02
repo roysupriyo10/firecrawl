@@ -17,7 +17,6 @@ beforeAll(async () => {
 });
 
 describe("v2.map e2e", () => {
-
   test("minimal request", async () => {
     if (!client) throw new Error();
     const resp = await client.map("https://docs.firecrawl.dev");
@@ -32,24 +31,27 @@ describe("v2.map e2e", () => {
     }
   }, 90_000);
 
-  test.each(["only", "skip", "include"]) ("with options sitemap=%s", async (sitemap) => {
-    if (!client) throw new Error();
-    const resp = await client.map("https://docs.firecrawl.dev", {
-      search: "docs",
-      includeSubdomains: true,
-      limit: 10,
-      sitemap: sitemap as any,
-      timeout: 15_000,
-    });
+  test.each(["only", "skip", "include"])(
+    "with options sitemap=%s",
+    async sitemap => {
+      if (!client) throw new Error();
+      const resp = await client.map("https://docs.firecrawl.dev", {
+        search: "docs",
+        includeSubdomains: true,
+        limit: 10,
+        sitemap: sitemap as any,
+        timeout: 15_000,
+      });
 
-    expect(resp).toBeTruthy();
-    expect(Array.isArray(resp.links)).toBe(true);
-    expect(resp.links.length).toBeLessThanOrEqual(10);
+      expect(resp).toBeTruthy();
+      expect(Array.isArray(resp.links)).toBe(true);
+      expect(resp.links.length).toBeLessThanOrEqual(10);
 
-    for (const link of resp.links as any[]) {
-      expect(typeof link.url).toBe("string");
-      expect(link.url.startsWith("http")).toBe(true);
-    }
-  }, 120_000);
+      for (const link of resp.links as any[]) {
+        expect(typeof link.url).toBe("string");
+        expect(link.url.startsWith("http")).toBe(true);
+      }
+    },
+    120_000,
+  );
 });
-

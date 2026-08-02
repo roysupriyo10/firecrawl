@@ -16,18 +16,18 @@ When `screenshot` or `execute_javascript` is requested, media blocking is disabl
 
 ## Install
 ```bash
-npm install
-npx playwright install
+pnpm install
+pnpm exec playwright install
 ```
 
 ## RUN
 ```bash
-npm run build
-npm start
+pnpm run build
+pnpm start
 ```
 OR
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ## USE

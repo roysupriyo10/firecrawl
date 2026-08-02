@@ -95,9 +95,7 @@ describe("Interact session replay", () => {
 
       const page = replayResponse.body.pages[0];
       expect(typeof page.pageId).toBe("string");
-      expect(page.url).toBe(
-        `/v2/interact/${sessionId}/replay/${page.pageId}`,
-      );
+      expect(page.url).toBe(`/v2/interact/${sessionId}/replay/${page.pageId}`);
       // pageUrl is the recorded page URL — should reflect where we navigated.
       expect(typeof page.pageUrl).toBe("string");
       expect(page.pageUrl).toContain(TEST_SUITE_WEBSITE);
@@ -131,20 +129,17 @@ describe("Interact session replay", () => {
     },
   );
 
-  itIf(!TEST_SELF_HOST)(
-    "returns 400 for an invalid pageId",
-    async () => {
-      const response = await browserReplayPageRaw(
-        crypto.randomUUID(),
-        "not-a-page",
-        identity,
-      );
+  itIf(!TEST_SELF_HOST)("returns 400 for an invalid pageId", async () => {
+    const response = await browserReplayPageRaw(
+      crypto.randomUUID(),
+      "not-a-page",
+      identity,
+    );
 
-      expect(response.statusCode).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Invalid pageId.");
-    },
-  );
+    expect(response.statusCode).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error).toBe("Invalid pageId.");
+  });
 
   itIf(canRunReplayHappyPath && !!config.IDMUX_URL)(
     "returns 403 when the session belongs to another team",

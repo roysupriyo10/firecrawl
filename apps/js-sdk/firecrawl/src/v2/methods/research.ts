@@ -127,9 +127,9 @@ export class ResearchClient {
     appendParam(params, "query", options.query);
     appendParam(params, "k", options.k);
     try {
-      const res = await this.http.get<PaperMetadataResponse | ReadPaperResponse>(
-        withQuery(`${BASE}/papers/${encodeURIComponent(id)}`, params),
-      );
+      const res = await this.http.get<
+        PaperMetadataResponse | ReadPaperResponse
+      >(withQuery(`${BASE}/papers/${encodeURIComponent(id)}`, params));
       if (res.status !== 200) throwForBadResponse(res, "get paper");
       return res.data;
     } catch (err) {
@@ -159,10 +159,7 @@ export class ResearchClient {
     appendParam(params, "anchor", options.anchor);
     try {
       const res = await this.http.get<SimilarPapersResponse>(
-        withQuery(
-          `${BASE}/papers/${encodeURIComponent(id)}/similar`,
-          params,
-        ),
+        withQuery(`${BASE}/papers/${encodeURIComponent(id)}/similar`, params),
       );
       if (res.status !== 200) throwForBadResponse(res, "find similar papers");
       return res.data;

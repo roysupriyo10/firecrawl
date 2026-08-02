@@ -2,7 +2,10 @@
  * Unit test: a search-target monitor request is forwarded intact to the API.
  */
 import { createMonitor } from "../../../v2/methods/monitor";
-import type { CreateMonitorRequest, MonitorSearchTarget } from "../../../v2/types";
+import type {
+  CreateMonitorRequest,
+  MonitorSearchTarget,
+} from "../../../v2/types";
 
 describe("v2 monitor search target", () => {
   test("createMonitor forwards a search target with its camelCase fields", async () => {
@@ -10,7 +13,10 @@ describe("v2 monitor search target", () => {
     const http: any = {
       post: async (_path: string, body: any) => {
         captured = body;
-        return { status: 200, data: { success: true, data: { id: "mon_1", ...body } } };
+        return {
+          status: 200,
+          data: { success: true, data: { id: "mon_1", ...body } },
+        };
       },
     };
 

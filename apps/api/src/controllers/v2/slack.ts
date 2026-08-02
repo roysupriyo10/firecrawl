@@ -36,7 +36,10 @@ const startBodySchema = z.object({
 });
 
 // Builds an absolute dashboard URL for post-OAuth browser redirects.
-function dashboardRedirect(path: string, params: Record<string, string>): string {
+function dashboardRedirect(
+  path: string,
+  params: Record<string, string>,
+): string {
   const url = new URL(path, config.FIRECRAWL_DASHBOARD_URL);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return url.toString();
@@ -75,7 +78,10 @@ export async function slackOAuthStartController(
 
 // GET /v2/slack/oauth/callback (public) — Slack redirects here after the user
 // approves. We exchange the code and bounce the browser back to the dashboard.
-export async function slackOAuthCallbackController(req: Request, res: Response) {
+export async function slackOAuthCallbackController(
+  req: Request,
+  res: Response,
+) {
   const code = typeof req.query.code === "string" ? req.query.code : undefined;
   const state =
     typeof req.query.state === "string" ? req.query.state : undefined;
@@ -84,7 +90,10 @@ export async function slackOAuthCallbackController(req: Request, res: Response) 
 
   if (slackError) {
     return res.redirect(
-      dashboardRedirect("/app/monitoring", { slack: "error", reason: slackError }),
+      dashboardRedirect("/app/monitoring", {
+        slack: "error",
+        reason: slackError,
+      }),
     );
   }
 
@@ -323,8 +332,7 @@ export async function slackEventsController(req: Request, res: Response) {
       eventType === "tokens_revoked" &&
       Array.isArray(event.tokens?.bot) &&
       event.tokens.bot.length > 0;
-    const shouldDisconnect =
-      eventType === "app_uninstalled" || botTokenRevoked;
+    const shouldDisconnect = eventType === "app_uninstalled" || botTokenRevoked;
 
     if (shouldDisconnect && slackTeamId) {
       try {

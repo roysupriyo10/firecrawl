@@ -29,10 +29,7 @@ import { hasFormatOfType } from "../../../lib/format-utils";
 import { brandingTransformer } from "../../../lib/branding/transformer";
 import { indexerQueue } from "../../../services/indexing/indexer-queue";
 import { config } from "../../../config";
-import {
-  BrandingFailedError,
-  ScreenshotFailedError,
-} from "../error";
+import { BrandingFailedError, ScreenshotFailedError } from "../error";
 
 type Transformer = (
   meta: Meta,

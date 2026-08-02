@@ -31,7 +31,10 @@ const MAX_LINK_URL_LEN = 2000;
 
 // Slack mrkdwn requires these three characters escaped in text spans.
 export function escapeSlackText(input: string): string {
-  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export function slackLink(url: string, label?: string): string {
@@ -100,7 +103,9 @@ export function buildMonitorAlertMessage(payload: MonitorSlackPayload): {
       });
       blocks.push({
         type: "context",
-        elements: [{ type: "mrkdwn", text: truncate(meta, SECTION_TEXT_LIMIT) }],
+        elements: [
+          { type: "mrkdwn", text: truncate(meta, SECTION_TEXT_LIMIT) },
+        ],
       });
     } else {
       // No judged description (e.g. unjudged monitor) — the page itself leads.

@@ -2,7 +2,12 @@
  * E2E tests for v2 search (translated from Python tests)
  */
 import Firecrawl from "../../../index";
-import type { Document, SearchResultWeb, SearchResultNews, SearchResultImages } from "../../../index";
+import type {
+  Document,
+  SearchResultWeb,
+  SearchResultNews,
+  SearchResultImages,
+} from "../../../index";
 import { config } from "dotenv";
 import { getIdentity, getApiUrl } from "./utils/idmux";
 import { describe, test, expect, beforeAll } from "@jest/globals";
@@ -20,31 +25,44 @@ beforeAll(async () => {
 function collectTexts(entries: any[] | undefined): string[] {
   const texts: string[] = [];
   for (const r of entries || []) {
-    const title = (r && typeof r === 'object') ? (r.title as unknown as string | undefined) : undefined;
-    const desc = (r && typeof r === 'object') ? (r.description as unknown as string | undefined) : undefined;
+    const title =
+      r && typeof r === "object"
+        ? (r.title as unknown as string | undefined)
+        : undefined;
+    const desc =
+      r && typeof r === "object"
+        ? (r.description as unknown as string | undefined)
+        : undefined;
     if (title) texts.push(String(title).toLowerCase());
     if (desc) texts.push(String(desc).toLowerCase());
   }
   return texts;
 }
 
-function isDocument(entry: Document | SearchResultWeb | SearchResultNews | SearchResultImages | undefined | null): entry is Document {
+function isDocument(
+  entry:
+    | Document
+    | SearchResultWeb
+    | SearchResultNews
+    | SearchResultImages
+    | undefined
+    | null,
+): entry is Document {
   if (!entry) return false;
   const d = entry as Document;
   return (
-    typeof d.markdown === 'string' ||
-    typeof d.rawHtml === 'string' ||
-    typeof d.html === 'string' ||
-    typeof d.links === 'object' ||
-    typeof d.screenshot === 'string' ||
-    typeof d.changeTracking === 'object' ||
-    typeof d.summary === 'string' ||
-    typeof d.json === 'object'
+    typeof d.markdown === "string" ||
+    typeof d.rawHtml === "string" ||
+    typeof d.html === "string" ||
+    typeof d.links === "object" ||
+    typeof d.screenshot === "string" ||
+    typeof d.changeTracking === "object" ||
+    typeof d.summary === "string" ||
+    typeof d.json === "object"
   );
 }
 
 describe("v2.search e2e", () => {
-
   test("minimal request", async () => {
     if (!client) throw new Error();
     const results = await client.search("What is the capital of France?");
@@ -63,8 +81,12 @@ describe("v2.search e2e", () => {
       }
       expect(typeof result.url).toBe("string");
       expect(result.url.startsWith("http")).toBe(true);
-      expect(typeof result.title === "string" || result.title == null).toBe(true);
-      expect(typeof result.description === "string" || result.description == null).toBe(true);
+      expect(typeof result.title === "string" || result.title == null).toBe(
+        true,
+      );
+      expect(
+        typeof result.description === "string" || result.description == null,
+      ).toBe(true);
     }
 
     const allText = collectTexts(results.web).join(" ");
@@ -76,7 +98,10 @@ describe("v2.search e2e", () => {
 
   test("with sources web+news and limit", async () => {
     if (!client) throw new Error();
-    const results = await client.search("firecrawl", { sources: ["web", "news"], limit: 3 });
+    const results = await client.search("firecrawl", {
+      sources: ["web", "news"],
+      limit: 3,
+    });
     expect(results).toBeTruthy();
     expect(results.web).toBeTruthy();
     expect((results.web || []).length).toBeLessThanOrEqual(3);
@@ -91,7 +116,7 @@ describe("v2.search e2e", () => {
     const webDescriptions = (results.web || [])
       .filter((r): r is SearchResultWeb => !isDocument(r))
       .map(r => (r.description || "").toString().toLowerCase());
-    const allWebText = (webTitles.concat(webDescriptions)).join(" ");
+    const allWebText = webTitles.concat(webDescriptions).join(" ");
     expect(allWebText.includes("firecrawl")).toBe(true);
   }, 90_000);
 
@@ -104,8 +129,12 @@ describe("v2.search e2e", () => {
       expect(result).toHaveProperty("title");
       expect(result).toHaveProperty("description");
       expect(typeof result.url).toBe("string");
-      expect(typeof result.title === "string" || result.title == null).toBe(true);
-      expect(typeof result.description === "string" || result.description == null).toBe(true);
+      expect(typeof result.title === "string" || result.title == null).toBe(
+        true,
+      );
+      expect(
+        typeof result.description === "string" || result.description == null,
+      ).toBe(true);
       expect(result.url.startsWith("http")).toBe(true);
     }
   }, 90_000);
@@ -123,7 +152,7 @@ describe("v2.search e2e", () => {
     } as const;
 
     const results = await client.search("artificial intelligence", {
-      sources: [ "web", "news", "images" ],
+      sources: ["web", "news", "images"],
       limit: 3,
       tbs: "qdr:m",
       location: "US",
@@ -133,7 +162,11 @@ describe("v2.search e2e", () => {
         formats: [
           "markdown",
           "html",
-          { type: "json", prompt: "Extract the title and description from the page", schema },
+          {
+            type: "json",
+            prompt: "Extract the title and description from the page",
+            schema,
+          },
         ],
         headers: { "User-Agent": "Firecrawl-Test/1.0" },
         includeTags: ["h1", "h2", "p"],
@@ -163,7 +196,13 @@ describe("v2.search e2e", () => {
     const nonDocEntries = (results.web || []).filter(r => !isDocument(r));
     if (nonDocEntries.length > 0) {
       const allWebText = collectTexts(nonDocEntries).join(" ");
-      const aiTerms = ["artificial", "intelligence", "ai", "machine", "learning"];
+      const aiTerms = [
+        "artificial",
+        "intelligence",
+        "ai",
+        "machine",
+        "learning",
+      ];
       expect(aiTerms.some(t => allWebText.includes(t))).toBe(true);
     }
 
@@ -224,7 +263,9 @@ describe("v2.search e2e", () => {
     const results = await client.search("site:docs.firecrawl.dev", {
       limit: 1,
       scrapeOptions: {
-        formats: [{ type: "json", prompt: "Extract page title", schema: jsonSchema }],
+        formats: [
+          { type: "json", prompt: "Extract page title", schema: jsonSchema },
+        ],
       },
     });
     expect(results).toBeTruthy();
@@ -244,4 +285,3 @@ describe("v2.search e2e", () => {
     }
   }, 90_000);
 });
-
