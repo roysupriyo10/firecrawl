@@ -86,6 +86,7 @@ const configSchema = z.object({
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
   FIREWORKS_API_KEY: z.string().optional(),
   DEEPINFRA_API_KEY: z.string().optional(),
+  MIMO_API_KEY: z.string().optional(),
   XAI_API_KEY: z.string().optional(),
   LLAMAPARSE_API_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -293,6 +294,15 @@ const configSchema = z.object({
   MODEL_EMBEDDING_NAME: z.string().optional(),
   OLLAMA_BASE_URL: z.string().optional(),
   VERTEX_CREDENTIALS: z.string().optional(),
+
+  // Xiaomi MiMo (OpenAI-compatible endpoint). Defaults to the Token Plan
+  // dedicated base URL; point MIMO_BASE_URL at https://api.xiaomimimo.com/v1
+  // to bill a pay-as-you-go key instead. MIMO_THINKING left unset means
+  // the vendor default applies (chain-of-thought enabled on the v2.5 series);
+  // set it explicitly to force deep thinking on or off. Note that with
+  // thinking enabled MiMo ignores temperature/top_p.
+  MIMO_BASE_URL: z.string().default("https://token-plan-sgp.xiaomimimo.com/v1"),
+  MIMO_THINKING: z.enum(["enabled", "disabled"]).optional(),
 
   // LangSmith (tracing for interact agent)
   LANGSMITH_API_KEY: z.string().optional(),

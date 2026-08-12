@@ -1,0 +1,3 @@
+minimumReleaseAgeExclude:
+  - '@ai-sdk/openai-compatible@2.0.67'
+  - '@ai-sdk/provider-utils@4.0.45'

@@ -33,9 +33,23 @@ MODEL_NAME=gemini-3.1-flash-lite
 # MODEL_NAME=gemini-3.5-flash
 ```
 
-`MODEL_PROVIDER` values: `openai` | `ollama` | `google` | `anthropic` | `groq` | `openrouter` | `fireworks` | `deepinfra` | `vertex`
+`MODEL_PROVIDER` values: `openai` | `ollama` | `google` | `anthropic` | `groq` | `openrouter` | `fireworks` | `deepinfra` | `vertex` | `mimo`
 
-Compose forwards `MODEL_PROVIDER`, `MODEL_NAME`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENAI_*`, `OLLAMA_BASE_URL`.
+```bash
+# Xiaomi MiMo (1M context, 128K output)
+MIMO_API_KEY=...
+MODEL_PROVIDER=mimo
+MODEL_NAME=mimo-v2.5-pro
+# MIMO_BASE_URL defaults to the Token Plan endpoint; api.xiaomimimo.com/v1 is PAYG
+# MIMO_THINKING=disabled   # unset = MiMo's default (enabled)
+```
+
+Use `MODEL_PROVIDER=mimo`, **not** `OPENAI_BASE_URL`. MiMo implements only
+`response_format: {"type":"json_object"}` and Chat Completions; the `mimo`
+provider carries those traits (see `PROVIDER_TRAITS` in `generic-ai.ts`) so
+`generateObject` uses JSON mode instead of a strict `json_schema` request.
+
+Compose forwards `MODEL_PROVIDER`, `MODEL_NAME`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENAI_*`, `OLLAMA_BASE_URL`, `MIMO_*`.
 
 After changing `.env`, recreate API containers so they pick up env (`docker compose up -d --force-recreate` or deploy script `up`).
 

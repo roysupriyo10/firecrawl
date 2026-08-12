@@ -2,7 +2,7 @@ import { TokenUsage } from "../../../controllers/v1/types";
 import { config } from "../../../config";
 import { logger } from "../../../lib/logger";
 import { CostTracking } from "../../cost-tracking";
-import { modelPrices } from "./model-prices";
+import { modelPrices } from "./prices";
 
 interface ModelPricing {
   input_cost_per_token?: number;

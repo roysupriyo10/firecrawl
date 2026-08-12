@@ -8,7 +8,7 @@ import {
 import { Logger } from "winston";
 import { Meta } from "..";
 import { logger } from "../../../lib/logger";
-import { modelPrices } from "../../../lib/extract/usage/model-prices";
+import { modelPrices } from "../../../lib/extract/usage/prices";
 import {
   AISDKError,
   generateObject,
@@ -88,9 +88,11 @@ const getModelLimits = (model: string) => {
     };
   }
   return {
-    maxInputTokens: modelConfig.max_input_tokens || modelConfig.max_tokens,
-    maxOutputTokens: modelConfig.max_output_tokens || modelConfig.max_tokens,
-    maxTokens: modelConfig.max_tokens,
+    maxInputTokens:
+      modelConfig.max_input_tokens ?? modelConfig.max_tokens ?? 8192,
+    maxOutputTokens:
+      modelConfig.max_output_tokens ?? modelConfig.max_tokens ?? 4096,
+    maxTokens: modelConfig.max_tokens ?? 12288,
   };
 };
 

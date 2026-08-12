@@ -57,7 +57,7 @@ USE_DB_AUTHENTICATION=false
 # When set, overrides hardcoded call-site providers (e.g. "openai") so you can
 # switch self-host models without code changes. Specialty multi-provider paths
 # (Vertex rerank, browser agent, etc.) use getModelExact() and are unaffected.
-# Values: openai | ollama | google | anthropic | groq | openrouter | fireworks | deepinfra | vertex
+# Values: openai | ollama | google | anthropic | groq | openrouter | fireworks | deepinfra | vertex | mimo
 # MODEL_PROVIDER=google
 # MODEL_NAME=gemini-3.5-flash
 
@@ -89,6 +89,28 @@ USE_DB_AUTHENTICATION=false
 # OPENROUTER_API_KEY=sk-or-...
 # MODEL_PROVIDER=openrouter
 # MODEL_NAME=openrouter/free
+
+# Xiaomi MiMo (1M context, 128K max output; mimo-v2.5-pro or mimo-v2.5).
+# Use the "mimo" provider rather than OPENAI_BASE_URL: MiMo implements only
+# response_format {"type":"json_object"}, so it needs JSON mode instead of the
+# strict json_schema request the openai provider sends, and it speaks Chat
+# Completions only.
+# MIMO_API_KEY=
+# MODEL_PROVIDER=mimo
+# MODEL_NAME=mimo-v2.5-pro
+#
+# MIMO_BASE_URL defaults to the Token Plan endpoint below. Note that the Token
+# Plan key is licensed for interactive use with coding/agent tools only, not
+# application backends; a pay-as-you-go key on api.xiaomimimo.com is the
+# licensed way to run a scraper against it.
+# MIMO_BASE_URL=https://token-plan-sgp.xiaomimimo.com/v1
+# MIMO_BASE_URL=https://api.xiaomimimo.com/v1
+#
+# Chain-of-thought is on by default on the v2.5 series. Leave MIMO_THINKING
+# unset to keep MiMo's default, "disabled" for cheaper/faster extraction, or
+# "enabled" to force it. With thinking on, MiMo ignores temperature/top_p and
+# reasoning tokens are billed as output.
+# MIMO_THINKING=disabled
 
 ## === Screenshot + branding (self-host via Playwright) ===
 # With PLAYWRIGHT_MICROSERVICE_URL configured (docker-compose default), formats
